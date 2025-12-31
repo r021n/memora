@@ -1,0 +1,172 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { MemoryItem, AppSettings, ItemType } from '../types';
+
+interface StoreContextType {
+  items: MemoryItem[];
+  settings: AppSettings;
+  addItem: (item: Omit<MemoryItem, 'id' | 'stats' | 'createdAt'>) => void;
+  updateItem: (id: string, updates: Partial<MemoryItem>) => void;
+  deleteItem: (id: string) => void;
+  updateStats: (id: string, isCorrect: boolean) => void;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
+}
+
+const StoreContext = createContext<StoreContextType | undefined>(undefined);
+
+const STORAGE_KEY_ITEMS = 'memora_items';
+const STORAGE_KEY_SETTINGS = 'memora_settings';
+
+const DEFAULT_SETTINGS: AppSettings = {
+  maxQuestionsPerSession: 10,
+};
+
+// Seed data for first time users
+const SEED_DATA: MemoryItem[] = [
+  {
+    id: 'seed-1',
+    type: ItemType.WORD,
+    term: 'Cat',
+    meanings: ['Kucing', 'Hewan berkaki empat'],
+    isActive: true,
+    stats: { correct: 0, incorrect: 0 },
+    createdAt: Date.now(),
+  },
+  {
+    id: 'seed-2',
+    type: ItemType.DEFINITION,
+    term: 'Photosynthesis',
+    description: 'The process by which green plants use sunlight to synthesize foods.',
+    meanings: [],
+    isActive: true,
+    stats: { correct: 0, incorrect: 0 },
+    createdAt: Date.now(),
+  },
+  {
+    id: 'seed-3',
+    type: ItemType.WORD,
+    term: 'Hello',
+    meanings: ['Halo', 'Hai', 'Sapaan'],
+    isActive: true,
+    stats: { correct: 0, incorrect: 0 },
+    createdAt: Date.now(),
+  },
+  {
+    id: 'seed-4',
+    type: ItemType.WORD,
+    term: 'Run',
+    meanings: ['Lari', 'Berlari'],
+    isActive: true,
+    stats: { correct: 0, incorrect: 0 },
+    createdAt: Date.now(),
+  },
+  {
+    id: 'seed-5',
+    type: ItemType.DEFINITION,
+    term: 'Gravity',
+    description: 'The force that attracts a body toward the center of the earth.',
+    meanings: [],
+    isActive: true,
+    stats: { correct: 0, incorrect: 0 },
+    createdAt: Date.now(),
+  }
+];
+
+export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [loading, setLoading] = useState(true);
+
+  // Load from local storage on mount
+  useEffect(() => {
+    try {
+      const storedItems = localStorage.getItem(STORAGE_KEY_ITEMS);
+      const storedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+
+      if (storedItems) {
+        setItems(JSON.parse(storedItems));
+      } else {
+        setItems(SEED_DATA);
+      }
+
+      if (storedSettings) {
+        setSettings(JSON.parse(storedSettings));
+      }
+    } catch (e) {
+      console.error("Failed to load data", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Save to local storage whenever state changes
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
+    }
+  }, [items, loading]);
+
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+    }
+  }, [settings, loading]);
+
+  const addItem = (newItemData: Omit<MemoryItem, 'id' | 'stats' | 'createdAt'>) => {
+    const newItem: MemoryItem = {
+      ...newItemData,
+      id: crypto.randomUUID(),
+      stats: { correct: 0, incorrect: 0 },
+      createdAt: Date.now(),
+    };
+    setItems((prev) => [newItem, ...prev]);
+  };
+
+  const updateItem = (id: string, updates: Partial<MemoryItem>) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+  };
+
+  const deleteItem = (id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updateStats = (id: string, isCorrect: boolean) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            stats: {
+              correct: isCorrect ? item.stats.correct + 1 : item.stats.correct,
+              incorrect: isCorrect ? item.stats.incorrect : item.stats.incorrect + 1,
+            },
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    setSettings((prev) => ({ ...prev, ...newSettings }));
+  };
+
+  if (loading) {
+    return <div className="h-screen w-full flex items-center justify-center text-slate-500">Loading...</div>;
+  }
+
+  return (
+    <StoreContext.Provider
+      value={{ items, settings, addItem, updateItem, deleteItem, updateStats, updateSettings }}
+    >
+      {children}
+    </StoreContext.Provider>
+  );
+};
+
+export const useStore = () => {
+  const context = useContext(StoreContext);
+  if (!context) {
+    throw new Error('useStore must be used within a StoreProvider');
+  }
+  return context;
+};

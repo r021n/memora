@@ -1,0 +1,5 @@
+{
+  "name": "Memora",
+  "description": "A smart memorization app inspired by flashcards and gamified learning. Create custom decks for words or definitions and test yourself with adaptive exercises.",
+  "requestFramePermissions": []
+}
