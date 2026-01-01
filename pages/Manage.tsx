@@ -15,8 +15,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { withSound } from "../utils/sound";
+import { useRootBackGuard } from "../hooks/useRootBackGuard";
 
 const Manage: React.FC = () => {
+  useRootBackGuard(true);
   const { items, updateItem, deleteItem, addItem, settings, updateSettings } =
     useStore();
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null);
@@ -175,33 +177,33 @@ const Manage: React.FC = () => {
     setAddMeanings(addMeanings.filter((_, i) => i !== idx));
 
   return (
-    <div className="min-h-screen pt-20 pb-24 sm:pb-10 px-8 max-w-5xl mx-auto">
+    <div className="max-w-5xl min-h-screen px-8 pt-20 pb-24 mx-auto sm:pb-10">
       {/* Header & Settings */}
       <div className="mb-8 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-700">Library</h1>
-            <p className="text-slate-500 font-medium">Manage your collection</p>
+            <p className="font-medium text-slate-500">Manage your collection</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <div className="flex flex-col w-full gap-3 sm:flex-row md:w-auto">
             <button
               onClick={handleOpenAdd}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-indigo-500 text-white rounded-xl border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all hover:bg-indigo-600 font-bold uppercase tracking-wide text-sm whitespace-nowrap"
+              className="flex items-center justify-center px-4 py-3 space-x-2 text-sm font-bold tracking-wide text-white uppercase transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-indigo-600 whitespace-nowrap"
             >
               <Plus size={18} />
               <span>Add Item</span>
             </button>
 
-            <div className="bg-white px-4 py-2 rounded-xl border-2 border-slate-200 flex items-center space-x-4 flex-1">
-              <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg shrink-0">
+            <div className="flex items-center flex-1 px-4 py-2 space-x-4 bg-white border-2 rounded-xl border-slate-200">
+              <div className="p-2 text-indigo-500 rounded-lg bg-indigo-50 shrink-0">
                 <Sliders size={20} />
               </div>
               <div className="flex-1 w-full">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase">
                   Max Questions
                 </label>
-                <div className="flex items-center space-x-3 w-full">
+                <div className="flex items-center w-full space-x-3">
                   <input
                     type="range"
                     min="5"
@@ -213,9 +215,9 @@ const Manage: React.FC = () => {
                         maxQuestionsPerSession: parseInt(e.target.value),
                       })
                     }
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 accent-indigo-500"
                   />
-                  <span className="font-bold text-slate-700 w-6 text-right">
+                  <span className="w-6 font-bold text-right text-slate-700">
                     {settings.maxQuestionsPerSession}
                   </span>
                 </div>
@@ -227,13 +229,13 @@ const Manage: React.FC = () => {
 
       {/* Grid of Cards */}
       {items.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-slate-300">
-          <p className="text-slate-400 font-bold">
+        <div className="py-20 text-center bg-white border-2 border-dashed rounded-2xl border-slate-300">
+          <p className="font-bold text-slate-400">
             No items yet. Add some to get started!
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
             <div
               key={item.id}
@@ -244,7 +246,7 @@ const Manage: React.FC = () => {
                   : "border-slate-200 border-b-4 hover:border-indigo-300 hover:bg-indigo-50/30"
               }`}
             >
-              <div className="flex justify-between items-start mb-2">
+              <div className="flex items-start justify-between mb-2">
                 <span
                   className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
                     item.type === ItemType.WORD
@@ -268,7 +270,7 @@ const Manage: React.FC = () => {
                 </button>
               </div>
 
-              <h3 className="text-lg font-bold text-slate-700 mb-1 line-clamp-1">
+              <h3 className="mb-1 text-lg font-bold text-slate-700 line-clamp-1">
                 {item.term}
               </h3>
               <p className="text-sm text-slate-500 font-medium line-clamp-2 min-h-[2.5rem]">
@@ -277,7 +279,7 @@ const Manage: React.FC = () => {
                   : item.description}
               </p>
 
-              <div className="mt-4 pt-3 border-t-2 border-slate-100 flex items-center justify-between text-xs font-bold text-slate-400">
+              <div className="flex items-center justify-between pt-3 mt-4 text-xs font-bold border-t-2 border-slate-100 text-slate-400">
                 <div className="flex items-center space-x-1 text-emerald-500">
                   <CheckCircle2 size={16} />
                   <span>{item.stats.correct}</span>
@@ -310,7 +312,7 @@ const Manage: React.FC = () => {
           title="Edit Item"
         >
           <div className="space-y-6">
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border-2 border-slate-100">
+            <div className="flex items-center justify-between p-3 border-2 bg-slate-50 rounded-xl border-slate-100">
               <span className="text-sm font-bold text-slate-600">
                 Included in exercises
               </span>
@@ -331,20 +333,20 @@ const Manage: React.FC = () => {
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
                   Term
                 </label>
                 <input
                   type="text"
                   value={editTerm}
                   onChange={(e) => setEditTerm(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white focus:border-indigo-400 focus:outline-none font-medium text-slate-700"
+                  className="w-full px-4 py-3 font-medium bg-white border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
                 />
               </div>
 
               {selectedItem.type === ItemType.WORD ? (
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                  <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
                     Meanings
                   </label>
                   <div className="space-y-2">
@@ -356,12 +358,12 @@ const Manage: React.FC = () => {
                           onChange={(e) =>
                             handleEditMeaningChange(idx, e.target.value)
                           }
-                          className="flex-1 px-4 py-2 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:outline-none font-medium text-slate-700"
+                          className="flex-1 px-4 py-2 font-medium border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
                         />
                         <button
                           type="button"
                           onClick={() => removeEditMeaning(idx)}
-                          className="text-slate-300 hover:text-rose-500 px-2"
+                          className="px-2 text-slate-300 hover:text-rose-500"
                         >
                           <Trash2 size={20} />
                         </button>
@@ -370,7 +372,7 @@ const Manage: React.FC = () => {
                     <button
                       type="button"
                       onClick={addEditMeaning}
-                      className="text-sm text-indigo-500 font-bold uppercase tracking-wide mt-2"
+                      className="mt-2 text-sm font-bold tracking-wide text-indigo-500 uppercase"
                     >
                       + Add meaning
                     </button>
@@ -378,31 +380,31 @@ const Manage: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                  <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
                     Description
                   </label>
                   <textarea
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:outline-none h-24 resize-none font-medium text-slate-700"
+                    className="w-full h-24 px-4 py-3 font-medium border-2 resize-none rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
                   />
                 </div>
               )}
 
               <div className="flex gap-3 pt-4">
                 {isConfirmingDelete ? (
-                  <div className="flex flex-1 gap-2 animate-in fade-in zoom-in duration-200">
+                  <div className="flex flex-1 gap-2 duration-200 animate-in fade-in zoom-in">
                     <button
                       type="button"
                       onClick={handleCancelDelete}
-                      className="px-4 py-3 text-slate-500 bg-slate-100 border-2 border-slate-200 hover:bg-slate-200 rounded-xl transition-all font-bold text-sm"
+                      className="px-4 py-3 text-sm font-bold transition-all border-2 text-slate-500 bg-slate-100 border-slate-200 hover:bg-slate-200 rounded-xl"
                     >
                       CANCEL
                     </button>
                     <button
                       type="button"
                       onClick={handleConfirmDelete}
-                      className="flex-1 flex items-center justify-center px-4 py-3 text-white bg-rose-500 border-2 border-rose-600 hover:bg-rose-600 rounded-xl transition-all font-bold text-sm"
+                      className="flex items-center justify-center flex-1 px-4 py-3 text-sm font-bold text-white transition-all border-2 bg-rose-500 border-rose-600 hover:bg-rose-600 rounded-xl"
                     >
                       CONFIRM DELETE
                     </button>
@@ -411,7 +413,7 @@ const Manage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleDeleteClick}
-                    className="flex items-center justify-center px-4 py-3 text-rose-500 bg-rose-50 border-2 border-rose-100 hover:border-rose-200 hover:bg-rose-100 rounded-xl transition-all"
+                    className="flex items-center justify-center px-4 py-3 transition-all border-2 text-rose-500 bg-rose-50 border-rose-100 hover:border-rose-200 hover:bg-rose-100 rounded-xl"
                   >
                     <Trash2 size={24} />
                   </button>
@@ -420,7 +422,7 @@ const Manage: React.FC = () => {
                 {!isConfirmingDelete && (
                   <button
                     type="submit"
-                    className="flex-1 py-3 font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded-xl border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wide"
+                    className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all bg-indigo-500 border-b-4 border-indigo-700 hover:bg-indigo-600 rounded-xl active:border-b-0 active:translate-y-1"
                   >
                     Save Changes
                   </button>
@@ -428,11 +430,11 @@ const Manage: React.FC = () => {
               </div>
             </form>
 
-            <div className="border-t-2 border-slate-100 pt-4">
+            <div className="pt-4 border-t-2 border-slate-100">
               <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">
                 Lifetime Statistics
               </h4>
-              <div className="flex justify-around bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
+              <div className="flex justify-around p-3 border-2 bg-slate-50 rounded-xl border-slate-100">
                 <div className="text-center">
                   <div className="text-xl font-black text-emerald-500">
                     {selectedItem.stats.correct}
@@ -462,7 +464,7 @@ const Manage: React.FC = () => {
         title="Add to Library"
       >
         <form onSubmit={handleAddSubmit} className="space-y-6">
-          <div className="flex gap-2 p-1 bg-slate-100 rounded-xl border-2 border-slate-100">
+          <div className="flex gap-2 p-1 border-2 bg-slate-100 rounded-xl border-slate-100">
             <button
               type="button"
               onClick={() => withSound(() => setAddMode(ItemType.WORD), 100)}
@@ -491,7 +493,7 @@ const Manage: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+              <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                 {addMode === ItemType.WORD
                   ? "Keyword / Term"
                   : "Term to Define"}
@@ -503,14 +505,14 @@ const Manage: React.FC = () => {
                 placeholder={
                   addMode === ItemType.WORD ? "e.g., Apple" : "e.g., Gravity"
                 }
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none transition-all font-medium text-slate-700"
+                className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                 required
               />
             </div>
 
             {addMode === ItemType.WORD ? (
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                   Meanings
                 </label>
                 <div className="space-y-3">
@@ -523,14 +525,14 @@ const Manage: React.FC = () => {
                           handleAddMeaningChange(idx, e.target.value)
                         }
                         placeholder="Enter meaning..."
-                        className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none transition-all font-medium text-slate-700"
+                        className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                         required={idx === 0}
                       />
                       {addMeanings.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeAddMeaning(idx)}
-                          className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl border-2 border-transparent hover:border-rose-100 transition-colors"
+                          className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
                         >
                           <X size={20} />
                         </button>
@@ -540,7 +542,7 @@ const Manage: React.FC = () => {
                   <button
                     type="button"
                     onClick={appendAddMeaning}
-                    className="text-sm text-indigo-500 font-bold hover:text-indigo-600 flex items-center space-x-1 py-1 uppercase tracking-wide"
+                    className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
                   >
                     <Plus size={18} />
                     <span>Add another</span>
@@ -549,14 +551,14 @@ const Manage: React.FC = () => {
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                   Description / Definition
                 </label>
                 <textarea
                   value={addDescription}
                   onChange={(e) => setAddDescription(e.target.value)}
                   placeholder="Enter definition..."
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none transition-all h-32 resize-none font-medium text-slate-700"
+                  className="w-full h-32 px-4 py-3 font-medium transition-all border-2 resize-none rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                   required
                 />
               </div>
@@ -567,13 +569,13 @@ const Manage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsAddModalOpen(false)}
-              className="flex-1 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors uppercase tracking-wide"
+              className="flex-1 py-3 font-bold tracking-wide uppercase transition-colors text-slate-500 hover:bg-slate-100 rounded-xl"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded-xl border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wide"
+              className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all bg-indigo-500 border-b-4 border-indigo-700 hover:bg-indigo-600 rounded-xl active:border-b-0 active:translate-y-1"
             >
               Save Item
             </button>
