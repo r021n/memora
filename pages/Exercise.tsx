@@ -244,20 +244,20 @@ const Exercise: React.FC = () => {
 
   if (getFilteredCount() < 4) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <div className="p-4 bg-amber-100 text-amber-600 rounded-full mb-4 border-2 border-amber-200">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="p-4 mb-4 border-2 rounded-full bg-amber-100 text-amber-600 border-amber-200">
           <XCircle size={32} />
         </div>
-        <h2 className="text-xl font-bold text-slate-800 mb-2">
+        <h2 className="mb-2 text-xl font-bold text-slate-800">
           Not Enough Data
         </h2>
-        <p className="text-slate-500 mb-6 font-medium">
+        <p className="mb-6 font-medium text-slate-500">
           You need at least 4 active items
           {filter !== "MIX" ? ` of type '${filter}'` : ""} to start.
         </p>
         <button
           onClick={() => withSound(() => navigate("/"))}
-          className="px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all"
+          className="px-6 py-3 font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1"
         >
           Back Home
         </button>
@@ -274,9 +274,9 @@ const Exercise: React.FC = () => {
         : 0;
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-indigo-50 animate-in fade-in duration-500">
-        <div className="bg-white p-8 rounded-3xl border-2 border-slate-200 w-full max-w-md text-center space-y-6">
-          <div className="inline-flex p-4 rounded-full bg-indigo-100 text-indigo-500 mb-2 border-2 border-indigo-200">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 duration-500 bg-indigo-50 animate-in fade-in">
+        <div className="w-full max-w-md p-8 space-y-6 text-center bg-white border-2 rounded-3xl border-slate-200">
+          <div className="inline-flex p-4 mb-2 text-indigo-500 bg-indigo-100 border-2 border-indigo-200 rounded-full">
             {mode === "infinite" ? (
               <Infinity size={48} />
             ) : (
@@ -288,7 +288,7 @@ const Exercise: React.FC = () => {
             <h2 className="text-2xl font-black text-slate-700">
               Session Complete!
             </h2>
-            <p className="text-slate-400 font-bold">
+            <p className="font-bold text-slate-400">
               {mode === "infinite"
                 ? "Great endurance practice!"
                 : "Here is how you did"}
@@ -296,42 +296,42 @@ const Exercise: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-emerald-50 rounded-2xl border-2 border-emerald-100">
+            <div className="p-4 border-2 bg-emerald-50 rounded-2xl border-emerald-100">
               <div className="text-3xl font-black text-emerald-500">
                 {sessionStats.correct}
               </div>
-              <div className="text-xs font-bold text-emerald-400 uppercase">
+              <div className="text-xs font-bold uppercase text-emerald-400">
                 Correct
               </div>
             </div>
-            <div className="p-4 bg-rose-50 rounded-2xl border-2 border-rose-100">
+            <div className="p-4 border-2 bg-rose-50 rounded-2xl border-rose-100">
               <div className="text-3xl font-black text-rose-500">
                 {sessionStats.incorrect}
               </div>
-              <div className="text-xs font-bold text-rose-400 uppercase">
+              <div className="text-xs font-bold uppercase text-rose-400">
                 Incorrect
               </div>
             </div>
           </div>
 
           <div className="pt-2">
-            <div className="text-sm font-bold text-slate-400 uppercase mb-2">
+            <div className="mb-2 text-sm font-bold uppercase text-slate-400">
               Accuracy
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden border border-slate-200">
+            <div className="w-full h-4 overflow-hidden border rounded-full bg-slate-100 border-slate-200">
               <div
-                className="bg-indigo-500 h-full rounded-full transition-all duration-1000"
+                className="h-full transition-all duration-1000 bg-indigo-500 rounded-full"
                 style={{ width: `${accuracy}%` }}
               ></div>
             </div>
-            <div className="text-right text-xs font-bold text-indigo-500 mt-1">
+            <div className="mt-1 text-xs font-bold text-right text-indigo-500">
               {accuracy}%
             </div>
           </div>
 
           <button
             onClick={() => withSound(() => navigate("/"))}
-            className="w-full py-4 bg-slate-700 text-white rounded-xl font-bold border-b-4 border-slate-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center space-x-2 uppercase tracking-wide"
+            className="flex items-center justify-center w-full py-4 space-x-2 font-bold tracking-wide text-white uppercase transition-all border-b-4 bg-slate-700 rounded-xl border-slate-800 active:border-b-0 active:translate-y-1"
           >
             <Home size={18} />
             <span>Back to Home</span>
@@ -343,7 +343,7 @@ const Exercise: React.FC = () => {
 
   if (gameState === GameState.PREPARING)
     return (
-      <div className="min-h-screen flex items-center justify-center text-indigo-500 font-bold">
+      <div className="flex items-center justify-center min-h-screen font-bold text-indigo-500">
         Preparing...
       </div>
     );
@@ -351,7 +351,7 @@ const Exercise: React.FC = () => {
   const currentQ = questions[currentIndex];
   if (!currentQ && gameState === GameState.PLAYING) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         Loading Question...
       </div>
     );
@@ -361,31 +361,31 @@ const Exercise: React.FC = () => {
     mode === "infinite" ? 100 : (currentIndex / questions.length) * 100;
 
   return (
-    <div className="min-h-screen flex flex-col bg-white relative overflow-hidden">
+    <div className="relative flex flex-col min-h-screen overflow-hidden bg-white">
       {/* Top Bar */}
-      <div className="px-4 py-4 flex items-center justify-between bg-white border-b-2 border-slate-100">
+      <div className="flex items-center justify-between px-4 py-4 bg-white border-b-2 border-slate-100">
         <button
           onClick={handleExit}
-          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+          className="p-2 transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl"
         >
           <ArrowLeft size={24} strokeWidth={2.5} />
         </button>
 
         {mode === "normal" ? (
-          <div className="flex-1 mx-4 bg-slate-100 rounded-full h-4 overflow-hidden">
+          <div className="flex-1 h-4 mx-4 overflow-hidden rounded-full bg-slate-100">
             <div
-              className="bg-indigo-500 h-full rounded-full transition-all duration-300 ease-out"
+              className="h-full transition-all duration-300 ease-out bg-indigo-500 rounded-full"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
         ) : (
-          <div className="flex-1 text-center font-black text-slate-300 uppercase tracking-widest text-xs flex items-center justify-center gap-1">
+          <div className="flex items-center justify-center flex-1 gap-1 text-xs font-black tracking-widest text-center uppercase text-slate-300">
             <Infinity size={14} />
             <span>Infinite Mode</span>
           </div>
         )}
 
-        <div className="text-sm font-bold text-slate-400 w-16 text-right">
+        <div className="w-16 text-sm font-bold text-right text-slate-400">
           {mode === "infinite"
             ? `#${currentIndex + 1}`
             : `${currentIndex + 1} / ${questions.length}`}
@@ -393,20 +393,20 @@ const Exercise: React.FC = () => {
       </div>
 
       {/* Question Area */}
-      <div className="flex-1 flex flex-col items-center max-w-2xl w-full mx-auto p-6 pb-32">
+      <div className="flex flex-col items-center flex-1 w-full max-w-2xl p-6 pb-32 mx-auto">
         <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[200px] mb-8">
-          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4">
+          <h3 className="mb-4 text-xs font-black tracking-widest uppercase text-slate-300">
             {currentQ?.item.type === ItemType.WORD
               ? "Translate / Identify"
               : "Define"}
           </h3>
-          <div className="text-2xl md:text-3xl font-black text-slate-700 text-center leading-relaxed animate-in zoom-in-95 duration-300">
+          <div className="text-2xl font-black leading-relaxed text-center duration-300 md:text-3xl text-slate-700 animate-in zoom-in-95">
             "{currentQ?.questionText}"
           </div>
         </div>
 
         {/* Options Grid */}
-        <div className="w-full grid gap-4">
+        <div className="grid w-full gap-4">
           {shuffledOptions.map((option, idx) => {
             // Colors based on state
             let btnClass =
@@ -448,7 +448,7 @@ const Exercise: React.FC = () => {
 
       {/* Feedback Popup / Bottom Sheet */}
       {gameState === GameState.FEEDBACK && (
-        <div className="fixed inset-0 z-50 pointer-events-none flex flex-col justify-end">
+        <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-none">
           {/* Overlay gradient */}
           <div className="absolute inset-0 bg-slate-900/10 pointer-events-auto backdrop-blur-[1px]" />
 
@@ -459,7 +459,7 @@ const Exercise: React.FC = () => {
                 : "bg-rose-50 border-rose-100"
             }`}
           >
-            <div className="max-w-2xl mx-auto flex flex-col gap-6">
+            <div className="flex flex-col max-w-2xl gap-6 mx-auto">
               <div className="flex items-center space-x-4">
                 <div
                   className={`flex-shrink-0 p-3 rounded-full ${
@@ -484,10 +484,10 @@ const Exercise: React.FC = () => {
                   </h3>
                   {!isCorrect && (
                     <div className="mt-1 text-rose-600">
-                      <span className="text-xs uppercase font-bold opacity-70">
+                      <span className="text-xs font-bold uppercase opacity-70">
                         Correct Answer
                       </span>
-                      <div className="font-bold text-lg leading-tight">
+                      <div className="text-lg font-bold leading-tight">
                         {currentQ.correctAnswerText}
                       </div>
                     </div>
@@ -497,7 +497,7 @@ const Exercise: React.FC = () => {
 
               <button
                 onClick={handleNextQuestion}
-                className={`w-full py-4 rounded-2xl font-bold text-lg text-white border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center space-x-2 uppercase tracking-wide ${
+                className={`w-full py-3 rounded-3xl font-bold text-lg text-white border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center space-x-2 uppercase tracking-wide ${
                   isCorrect
                     ? "bg-emerald-500 border-2 border-emerald-700 hover:bg-emerald-600"
                     : "bg-rose-500 border-2 border-rose-700 hover:bg-rose-600"

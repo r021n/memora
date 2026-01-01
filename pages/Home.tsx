@@ -106,16 +106,16 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-24 sm:pb-10 px-10 max-w-5xl mx-auto flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col max-w-5xl min-h-screen px-10 pt-20 pb-24 mx-auto sm:pb-10">
+      <div className="flex flex-col items-center justify-center flex-1 space-y-8 text-center duration-500 animate-in fade-in slide-in-from-bottom-4">
         <div className="space-y-4">
-          <div className="inline-block p-6 rounded-3xl bg-indigo-50 text-indigo-500 mb-4 border-b-4 border-indigo-100">
+          <div className="inline-block p-6 mb-4 text-indigo-500 border-b-4 border-indigo-100 rounded-3xl bg-indigo-50">
             <BookOpen size={64} strokeWidth={2.5} />
           </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-700 tracking-tight">
+          <h1 className="text-4xl font-[1000] tracking-tight md:text-5xl text-slate-700">
             Master Your Memory
           </h1>
-          <p className="text-lg text-slate-500 max-w-md mx-auto font-medium">
+          <p className="max-w-md mx-auto text-lg font-medium text-slate-500">
             Create your own flashcards and practice with smart, gamified
             exercises.
           </p>
@@ -133,7 +133,7 @@ const Home: React.FC = () => {
               }`}
             >
               <Play size={20} fill="currentColor" />
-              <span className="uppercase tracking-wide">Start</span>
+              <span className="tracking-wide uppercase">Start</span>
             </button>
 
             <button
@@ -141,7 +141,7 @@ const Home: React.FC = () => {
               className="flex-1 flex items-center justify-center space-x-2 py-4 px-6 rounded-2xl font-bold bg-white text-slate-600 border-2 border-slate-200 border-b-4 hover:bg-slate-50 hover:border-slate-300 active:border-b-2 active:translate-y-[2px] transition-all duration-200"
             >
               <Plus size={20} />
-              <span className="uppercase tracking-wide">Add New</span>
+              <span className="tracking-wide uppercase">Add New</span>
             </button>
           </div>
 
@@ -155,12 +155,12 @@ const Home: React.FC = () => {
             }`}
           >
             <Infinity size={24} />
-            <span className="uppercase tracking-wide">Infinite Practice</span>
+            <span className="tracking-wide uppercase">Infinite Practice</span>
           </button>
         </div>
 
         {activeCount < 4 && (
-          <p className="text-sm font-bold text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border-2 border-amber-100">
+          <p className="px-4 py-3 text-sm font-bold border-2 text-amber-600 bg-amber-50 rounded-xl border-amber-100">
             ⚠️ Add at least 4 active items to start practicing.
           </p>
         )}
@@ -173,20 +173,20 @@ const Home: React.FC = () => {
         title="Choose Focus"
       >
         <div className="space-y-4">
-          <p className="text-slate-500 font-medium mb-4">
+          <p className="mb-4 font-medium text-slate-500">
             Select what type of cards you want to practice with.
           </p>
 
           <button
             onClick={() => handleStartGame("MIX")}
-            className="w-full p-4 bg-indigo-50 border-2 border-indigo-100 rounded-2xl hover:bg-indigo-100 hover:border-indigo-200 active:bg-indigo-200 transition-all flex items-center space-x-4 group duration-200"
+            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 border-indigo-100 bg-indigo-50 rounded-2xl hover:bg-indigo-100 hover:border-indigo-200 active:bg-indigo-200 group"
           >
-            <div className="p-3 bg-white rounded-xl text-indigo-500 group-hover:scale-110 transition-transform shadow-sm">
+            <div className="p-3 text-indigo-500 transition-transform bg-white shadow-sm rounded-xl group-hover:scale-110">
               <Layers size={24} />
             </div>
             <div className="text-left">
               <h3 className="font-bold text-slate-700">Mix All</h3>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-xs font-medium text-slate-400">
                 Practice everything in your library
               </p>
             </div>
@@ -194,14 +194,14 @@ const Home: React.FC = () => {
 
           <button
             onClick={() => handleStartGame("WORD")}
-            className="w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-2xl hover:bg-blue-100 hover:border-blue-200 active:bg-blue-200 transition-all flex items-center space-x-4 group duration-200"
+            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 border-blue-100 bg-blue-50 rounded-2xl hover:bg-blue-100 hover:border-blue-200 active:bg-blue-200 group"
           >
-            <div className="p-3 bg-white rounded-xl text-blue-500 group-hover:scale-110 transition-transform shadow-sm">
+            <div className="p-3 text-blue-500 transition-transform bg-white shadow-sm rounded-xl group-hover:scale-110">
               <Type size={24} />
             </div>
             <div className="text-left">
               <h3 className="font-bold text-slate-700">Words Only</h3>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-xs font-medium text-slate-400">
                 Translate and identify terms
               </p>
             </div>
@@ -209,14 +209,14 @@ const Home: React.FC = () => {
 
           <button
             onClick={() => handleStartGame("DEFINITION")}
-            className="w-full p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl hover:bg-emerald-100 hover:border-emerald-200 active:bg-emerald-200 transition-all flex items-center space-x-4 group duration-200"
+            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 bg-emerald-50 border-emerald-100 rounded-2xl hover:bg-emerald-100 hover:border-emerald-200 active:bg-emerald-200 group"
           >
-            <div className="p-3 bg-white rounded-xl text-emerald-500 group-hover:scale-110 transition-transform shadow-sm">
+            <div className="p-3 transition-transform bg-white shadow-sm rounded-xl text-emerald-500 group-hover:scale-110">
               <FileText size={24} />
             </div>
             <div className="text-left">
               <h3 className="font-bold text-slate-700">Definitions Only</h3>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-xs font-medium text-slate-400">
                 Guess terms from descriptions
               </p>
             </div>
@@ -232,7 +232,7 @@ const Home: React.FC = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Mode Selection */}
-          <div className="flex gap-2 p-1 bg-slate-100 rounded-xl border-2 border-slate-100">
+          <div className="flex gap-2 p-1 border-2 bg-slate-100 rounded-xl border-slate-100">
             <button
               type="button"
               onClick={() => withSound(() => setMode(ItemType.WORD), 100)}
@@ -259,7 +259,7 @@ const Home: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+              <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                 {mode === ItemType.WORD ? "Keyword / Term" : "Term to Define"}
               </label>
               <input
@@ -269,14 +269,14 @@ const Home: React.FC = () => {
                 placeholder={
                   mode === ItemType.WORD ? "e.g., Apple" : "e.g., Gravity"
                 }
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none transition-all font-medium text-slate-700"
+                className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                 required
               />
             </div>
 
             {mode === ItemType.WORD ? (
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                   Meanings / Translations
                 </label>
                 <div className="space-y-3">
@@ -289,14 +289,14 @@ const Home: React.FC = () => {
                           handleMeaningChange(idx, e.target.value)
                         }
                         placeholder="Enter meaning..."
-                        className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none transition-all font-medium text-slate-700"
+                        className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                         required={idx === 0}
                       />
                       {meanings.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveMeaning(idx)}
-                          className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl border-2 border-transparent hover:border-rose-100 transition-colors"
+                          className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
                         >
                           <X size={20} />
                         </button>
@@ -306,7 +306,7 @@ const Home: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddMeaning}
-                    className="text-sm text-indigo-500 font-bold hover:text-indigo-600 flex items-center space-x-1 py-1 uppercase tracking-wide"
+                    className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
                   >
                     <Plus size={18} />
                     <span>Add another</span>
@@ -315,14 +315,14 @@ const Home: React.FC = () => {
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                   Description / Definition
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g., The force that attracts a body toward the center of the earth."
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none transition-all h-32 resize-none font-medium text-slate-700"
+                  className="w-full h-32 px-4 py-3 font-medium transition-all border-2 resize-none rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                   required
                 />
               </div>
@@ -333,13 +333,13 @@ const Home: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="flex-1 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors uppercase tracking-wide"
+              className="flex-1 py-3 font-bold tracking-wide uppercase transition-colors text-slate-500 hover:bg-slate-100 rounded-xl"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded-xl border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wide"
+              className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all bg-indigo-500 border-b-4 border-indigo-700 hover:bg-indigo-600 rounded-xl active:border-b-0 active:translate-y-1"
             >
               Save
             </button>
