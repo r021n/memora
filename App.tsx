@@ -13,11 +13,10 @@ import Exercise from "./pages/Exercise";
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  // Don't show Navbars on Exercise screen for immersion
   const showNav = location.pathname !== "/exercise";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-800">
+    <div className="min-h-screen font-sans bg-slate-50 text-slate-800 selection:bg-indigo-100 selection:text-indigo-800">
       {showNav && <DesktopHeader />}
 
       <main className="w-full">
