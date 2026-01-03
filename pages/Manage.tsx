@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useStore } from "../context/StoreContext";
 import Modal from "../components/Modal";
+import CustomSelect from "../components/CustomSelect";
 import { ItemType, MemoryItem } from "../types";
 import {
   Edit2,
@@ -17,15 +18,27 @@ import {
 import { withSound } from "../utils/sound";
 
 const Manage: React.FC = () => {
-  const { items, updateItem, deleteItem, addItem, settings, updateSettings } =
-    useStore();
+  const {
+    items,
+    updateItem,
+    deleteItem,
+    addItem,
+    settings,
+    updateSettings,
+    categories,
+    addCategory,
+    deleteCategory,
+  } = useStore();
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   // -- Edit State --
   const [editTerm, setEditTerm] = useState("");
   const [editMeanings, setEditMeanings] = useState<string[]>([]);
   const [editDescription, setEditDescription] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState<string>("");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   // -- Add State --
@@ -33,6 +46,10 @@ const Manage: React.FC = () => {
   const [addTerm, setAddTerm] = useState("");
   const [addMeanings, setAddMeanings] = useState<string[]>([""]);
   const [addDescription, setAddDescription] = useState("");
+  const [addCategoryId, setAddCategoryId] = useState<string>("");
+
+  // Helpers
+  const categoryOptions = categories.map((c) => ({ id: c.id, label: c.name }));
 
   // Reset delete confirmation when modal closes or item changes
   useEffect(() => {
@@ -47,6 +64,7 @@ const Manage: React.FC = () => {
       setEditTerm(item.term);
       setEditMeanings(item.meanings.length ? [...item.meanings] : [""]);
       setEditDescription(item.description || "");
+      setEditCategoryId(item.categoryId || "");
       setIsConfirmingDelete(false);
     });
   };
@@ -58,6 +76,7 @@ const Manage: React.FC = () => {
     withSound(() => {
       const updates: Partial<MemoryItem> = {
         term: editTerm,
+        categoryId: editCategoryId || undefined,
       };
 
       if (selectedItem.type === ItemType.WORD) {
@@ -131,6 +150,10 @@ const Manage: React.FC = () => {
     withSound(() => setIsAddModalOpen(true));
   };
 
+  const handleOpenCategory = () => {
+    withSound(() => setIsCategoryModalOpen(true));
+  };
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!addTerm.trim()) return;
@@ -144,6 +167,7 @@ const Manage: React.FC = () => {
           term: addTerm,
           meanings: filteredMeanings,
           isActive: true,
+          categoryId: addCategoryId || undefined,
         });
       } else {
         if (!addDescription.trim()) return;
@@ -153,6 +177,7 @@ const Manage: React.FC = () => {
           meanings: [],
           description: addDescription,
           isActive: true,
+          categoryId: addCategoryId || undefined,
         });
       }
 
@@ -160,6 +185,7 @@ const Manage: React.FC = () => {
       setAddTerm("");
       setAddMeanings([""]);
       setAddDescription("");
+      setAddCategoryId("");
       setAddMode(ItemType.WORD);
       setIsAddModalOpen(false);
     });
@@ -185,6 +211,13 @@ const Manage: React.FC = () => {
           </div>
 
           <div className="flex flex-col w-full gap-3 sm:flex-row md:w-auto">
+            <button
+              onClick={handleOpenCategory}
+              className="flex items-center justify-center px-4 py-3 space-x-2 text-sm font-bold tracking-wide text-indigo-500 uppercase transition-all bg-white border-b-4 border-slate-200 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-slate-50 whitespace-nowrap"
+            >
+              <Sliders size={18} />
+              <span>Categories</span>
+            </button>
             <button
               onClick={handleOpenAdd}
               className="flex items-center justify-center px-4 py-3 space-x-2 text-sm font-bold tracking-wide text-white uppercase transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-indigo-600 whitespace-nowrap"
@@ -248,6 +281,15 @@ const Manage: React.FC = () => {
                   : item.description}
               </p>
 
+              {item.categoryId && (
+                <div className="mt-3">
+                  <span className="inline-block px-2 py-1 text-[10px] font-bold text-slate-500 bg-slate-100 rounded-md">
+                    {categories.find((c) => c.id === item.categoryId)?.name ||
+                      "Unknown"}
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-3 mt-4 text-xs font-bold border-t-2 border-slate-100 text-slate-400">
                 <div className="flex items-center space-x-1 text-emerald-500">
                   <CheckCircle2 size={16} />
@@ -298,6 +340,19 @@ const Manage: React.FC = () => {
                   <ToggleLeft size={40} />
                 )}
               </button>
+            </div>
+
+            {/* Category Select for Edit */}
+            <div>
+              <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
+                Category
+              </label>
+              <CustomSelect
+                options={categoryOptions}
+                value={editCategoryId}
+                onChange={setEditCategoryId}
+                placeholder="No Category"
+              />
             </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
@@ -460,6 +515,18 @@ const Manage: React.FC = () => {
             </button>
           </div>
 
+          <div>
+            <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
+              Category
+            </label>
+            <CustomSelect
+              options={categoryOptions}
+              value={addCategoryId}
+              onChange={setAddCategoryId}
+              placeholder="No Category"
+            />
+          </div>
+
           <div className="space-y-4">
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
@@ -550,6 +617,66 @@ const Manage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Category Management Modal */}
+      <Modal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        title="Manage Categories"
+      >
+        <div className="space-y-6">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Execute immediately to avoid mobile issues, play sound in parallel
+              // disabling the delay ensures the action is always captured
+              import("../utils/sound").then((mod) => mod.playClick());
+              addCategory(newCategoryName);
+              setNewCategoryName("");
+            }}
+            className="flex flex-col gap-2 sm:flex-row"
+          >
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="New Category Name"
+              className="flex-1 px-4 py-3 font-medium bg-white border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
+            />
+            <button
+              type="submit"
+              disabled={!newCategoryName.trim()}
+              className="px-4 py-3 font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              <Plus size={24} />
+              <span className="ml-2 sm:hidden">Add Category</span>
+            </button>
+          </form>
+
+          <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
+            {categories.length === 0 ? (
+              <p className="text-center text-slate-400 font-medium py-4">
+                No categories yet.
+              </p>
+            ) : (
+              categories.map((cat) => (
+                <div
+                  key={cat.id}
+                  className="flex items-center justify-between p-3 border-2 bg-slate-50 border-slate-100 rounded-xl"
+                >
+                  <span className="font-bold text-slate-700">{cat.name}</span>
+                  <button
+                    onClick={() => withSound(() => deleteCategory(cat.id))}
+                    className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </Modal>
     </div>
   );

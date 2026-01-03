@@ -1,11 +1,16 @@
 export enum ItemType {
-  WORD = 'WORD',
-  DEFINITION = 'DEFINITION'
+  WORD = "WORD",
+  DEFINITION = "DEFINITION",
 }
 
 export interface Stats {
   correct: number;
   incorrect: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
 }
 
 export interface MemoryItem {
@@ -15,6 +20,7 @@ export interface MemoryItem {
   meanings: string[]; // For Word type: list of meanings
   description?: string; // For Definition type: the long description
   isActive: boolean;
+  categoryId?: string;
   stats: Stats;
   createdAt: number;
 }

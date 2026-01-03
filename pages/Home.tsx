@@ -12,22 +12,32 @@ import {
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Modal from "../components/Modal";
+import CustomSelect from "../components/CustomSelect";
 import { ItemType } from "../types";
 import { withSound } from "../utils/sound";
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
-  const { addItem, items } = useStore();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [setupMode, setSetupMode] = useState<"normal" | "infinite" | null>(
     null
   );
+  const { addItem, items, categories } = useStore();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Category Selection State
+  const [selectedCategoryStart, setSelectedCategoryStart] = useState<
+    string | null
+  >(null);
+  const [isCategorySelectOpen, setIsCategorySelectOpen] = useState(false);
 
   // Form State
   const [mode, setMode] = useState<ItemType>(ItemType.WORD);
   const [term, setTerm] = useState("");
   const [meanings, setMeanings] = useState<string[]>([""]);
   const [description, setDescription] = useState("");
+  const [addCategoryId, setAddCategoryId] = useState<string>("");
+
+  const categoryOptions = categories.map((c) => ({ id: c.id, label: c.name }));
 
   const activeCount = items.filter((i) => i.isActive).length;
 
@@ -35,11 +45,22 @@ const Home: React.FC = () => {
     withSound(() => setSetupMode(mode));
   };
 
-  const handleStartGame = (filter: "MIX" | "WORD" | "DEFINITION") => {
+  const handleStartGame = (
+    filter: "MIX" | "WORD" | "DEFINITION" | "CATEGORY",
+    categoryId?: string
+  ) => {
     if (setupMode) {
       withSound(() => {
-        navigate("/exercise", { state: { mode: setupMode, filter } });
+        navigate("/exercise", {
+          state: {
+            mode: setupMode,
+            filter,
+            categoryId,
+          },
+        });
         setSetupMode(null);
+        setIsCategorySelectOpen(false);
+        setSelectedCategoryStart(null);
       });
     }
   };
@@ -69,6 +90,7 @@ const Home: React.FC = () => {
     setMeanings([""]);
     setDescription("");
     setMode(ItemType.WORD);
+    setAddCategoryId("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -87,6 +109,7 @@ const Home: React.FC = () => {
           term: term,
           meanings: filteredMeanings,
           isActive: true,
+          categoryId: addCategoryId || undefined,
         });
       } else {
         if (!description.trim()) return;
@@ -97,6 +120,7 @@ const Home: React.FC = () => {
           meanings: [],
           description: description,
           isActive: true,
+          categoryId: addCategoryId || undefined,
         });
       }
 
@@ -168,7 +192,7 @@ const Home: React.FC = () => {
 
       {/* Setup Practice Modal */}
       <Modal
-        isOpen={!!setupMode}
+        isOpen={!!setupMode && !isCategorySelectOpen}
         onClose={() => setSetupMode(null)}
         title="Choose Focus"
       >
@@ -221,6 +245,67 @@ const Home: React.FC = () => {
               </p>
             </div>
           </button>
+
+          <button
+            onClick={() => {
+              withSound(() => {
+                // Keep setupMode active so we know if it's normal/infinite
+                // Just open the category select, which will hide this modal via the condition above
+                setIsCategorySelectOpen(true);
+              });
+            }}
+            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 bg-slate-50 border-slate-100 rounded-2xl hover:bg-slate-100 hover:border-slate-200 active:bg-slate-200 group"
+          >
+            <div className="p-3 transition-transform bg-white shadow-sm rounded-xl text-slate-500 group-hover:scale-110">
+              <Layers size={24} />
+            </div>
+            <div className="text-left">
+              <h3 className="font-bold text-slate-700">By Category</h3>
+              <p className="text-xs font-medium text-slate-400">
+                Focus on specific topics
+              </p>
+            </div>
+          </button>
+        </div>
+      </Modal>
+
+      {/* Category Selection Modal for Start Game */}
+      <Modal
+        isOpen={isCategorySelectOpen}
+        onClose={() => setIsCategorySelectOpen(false)}
+        title="Select Category"
+      >
+        <div className="space-y-4">
+          {categories.length === 0 ? (
+            <p className="text-center py-4 text-slate-500">
+              No categories found. Create one in Manage.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto pr-2">
+              {categories.map((cat) => {
+                const count = items.filter(
+                  (i) => i.categoryId === cat.id && i.isActive
+                ).length;
+                return (
+                  <button
+                    key={cat.id}
+                    disabled={count < 4}
+                    onClick={() => handleStartGame("CATEGORY", cat.id)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      count < 4
+                        ? "opacity-50 border-slate-100 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 bg-white"
+                    }`}
+                  >
+                    <div className="font-bold text-slate-700">{cat.name}</div>
+                    <div className="text-xs text-slate-400">
+                      {count} active items
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -258,6 +343,18 @@ const Home: React.FC = () => {
           </div>
 
           <div className="space-y-4">
+            <div>
+              <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
+                Category
+              </label>
+              <CustomSelect
+                options={categoryOptions}
+                value={addCategoryId}
+                onChange={setAddCategoryId}
+                placeholder="No Category"
+              />
+            </div>
+
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
                 {mode === ItemType.WORD ? "Keyword / Term" : "Term to Define"}

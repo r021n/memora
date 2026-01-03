@@ -32,7 +32,9 @@ const Exercise: React.FC = () => {
 
   const mode = (location.state?.mode as "normal" | "infinite") || "normal";
   const filter =
-    (location.state?.filter as "MIX" | "WORD" | "DEFINITION") || "MIX";
+    (location.state?.filter as "MIX" | "WORD" | "DEFINITION" | "CATEGORY") ||
+    "MIX";
+  const categoryId = location.state?.categoryId as string | undefined;
 
   const [gameState, setGameState] = useState<GameState>(GameState.PREPARING);
   const [questions, setQuestions] = useState<QuestionData[]>([]);
@@ -63,8 +65,11 @@ const Exercise: React.FC = () => {
         activeItems = activeItems.filter((i) => i.type === ItemType.WORD);
       } else if (filter === "DEFINITION") {
         activeItems = activeItems.filter((i) => i.type === ItemType.DEFINITION);
+      } else if (filter === "CATEGORY" && categoryId) {
+        activeItems = activeItems.filter((i) => i.categoryId === categoryId);
       }
 
+      // Check if we have enough items AFTER filtering
       if (activeItems.length < 4) return [];
 
       const sessionItems = shuffle<MemoryItem>(activeItems).slice(0, count);
@@ -108,7 +113,16 @@ const Exercise: React.FC = () => {
             }
           });
 
-        const distractors = shuffle(potentialDistractors).slice(0, 3); // 3 Distractors + 1 Correct = 4 Total
+        // Ensure unique distractors
+        const uniqueDistractors = Array.from(new Set(potentialDistractors));
+        const distractors = shuffle(uniqueDistractors).slice(0, 3); // 3 Distractors + 1 Correct = 4 Total
+
+        // If for some reason we don't have enough distractors (should be caught by initial check, but safety net)
+        if (distractors.length < 3) {
+          // Fallback: This question might be invalid if we strictly require 4 options.
+          // For now, let's allow it but it might look weird.
+          // Better to handle this in validity check.
+        }
 
         return {
           item: targetItem,
@@ -118,12 +132,22 @@ const Exercise: React.FC = () => {
         };
       });
     },
-    [items, filter]
+    [items, filter, categoryId]
   );
 
   // Initial Setup
   useEffect(() => {
-    if (questions.length > 0) return; // Prevent regeneration on state updates
+    // If we already have questions, don't regen
+    if (questions.length > 0) return;
+
+    // Check if we have enough data BEFORE trying to generate
+    const count = getFilteredCount();
+    if (count < 4) {
+      // If not enough data, we won't generate questions.
+      // The render logic below will switch to "Not Enough Data" view automatically
+      // because we check `getFilteredCount() < 4`
+      return;
+    }
 
     const initialCount = mode === "infinite" ? 1 : 10;
     const newQuestions = generateQuestions(initialCount);
@@ -132,7 +156,7 @@ const Exercise: React.FC = () => {
       setQuestions(newQuestions);
       setGameState(GameState.PLAYING);
     }
-  }, [items, mode, generateQuestions, questions.length]);
+  }, [items, mode, generateQuestions, questions.length, filter, categoryId]);
 
   // Set options for current question
   useEffect(() => {
@@ -221,19 +245,19 @@ const Exercise: React.FC = () => {
     });
   };
 
-  const getFilteredCount = () => {
-    let count = 0;
-    if (filter === "MIX") count = items.filter((i) => i.isActive).length;
-    if (filter === "WORD")
-      count = items.filter(
-        (i) => i.isActive && i.type === ItemType.WORD
-      ).length;
-    if (filter === "DEFINITION")
-      count = items.filter(
-        (i) => i.isActive && i.type === ItemType.DEFINITION
-      ).length;
-    return count;
-  };
+  const getFilteredCount = useCallback(() => {
+    let activeItems = items.filter((i) => i.isActive);
+
+    if (filter === "WORD") {
+      activeItems = activeItems.filter((i) => i.type === ItemType.WORD);
+    } else if (filter === "DEFINITION") {
+      activeItems = activeItems.filter((i) => i.type === ItemType.DEFINITION);
+    } else if (filter === "CATEGORY" && categoryId) {
+      activeItems = activeItems.filter((i) => i.categoryId === categoryId);
+    }
+
+    return activeItems.length;
+  }, [items, filter, categoryId]);
 
   if (getFilteredCount() < 4) {
     return (
@@ -245,8 +269,10 @@ const Exercise: React.FC = () => {
           Not Enough Data
         </h2>
         <p className="mb-6 font-medium text-slate-500">
-          You need at least 4 active items
-          {filter !== "MIX" ? ` of type '${filter}'` : ""} to start.
+          We found <strong>{getFilteredCount()}</strong> active items for this
+          selection.
+          <br />
+          You need at least <strong>4</strong> active items to start.
         </p>
         <button
           onClick={() => withSound(() => navigate("/"))}
