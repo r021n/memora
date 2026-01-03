@@ -14,10 +14,8 @@ import { useStore } from "../context/StoreContext";
 import Modal from "../components/Modal";
 import { ItemType } from "../types";
 import { withSound } from "../utils/sound";
-import { useRootBackGuard } from "../hooks/useRootBackGuard";
 
 const Home: React.FC = () => {
-  useRootBackGuard(true);
   const navigate = useNavigate();
   const { addItem, items } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);

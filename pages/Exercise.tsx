@@ -125,21 +125,14 @@ const Exercise: React.FC = () => {
   useEffect(() => {
     if (questions.length > 0) return; // Prevent regeneration on state updates
 
-    const initialCount =
-      mode === "infinite" ? 1 : settings.maxQuestionsPerSession;
+    const initialCount = mode === "infinite" ? 1 : 10;
     const newQuestions = generateQuestions(initialCount);
 
     if (newQuestions.length > 0) {
       setQuestions(newQuestions);
       setGameState(GameState.PLAYING);
     }
-  }, [
-    items,
-    settings.maxQuestionsPerSession,
-    mode,
-    generateQuestions,
-    questions.length,
-  ]);
+  }, [items, mode, generateQuestions, questions.length]);
 
   // Set options for current question
   useEffect(() => {
@@ -274,67 +267,65 @@ const Exercise: React.FC = () => {
         : 0;
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 duration-500 bg-indigo-50 animate-in fade-in">
-        <div className="w-full max-w-md p-8 space-y-6 text-center bg-white border-2 rounded-3xl border-slate-200">
-          <div className="inline-flex p-4 mb-2 text-indigo-500 bg-indigo-100 border-2 border-indigo-200 rounded-full">
-            {mode === "infinite" ? (
-              <Infinity size={48} />
-            ) : (
-              <RefreshCw size={48} />
-            )}
-          </div>
-
-          <div>
-            <h2 className="text-2xl font-black text-slate-700">
-              Session Complete!
-            </h2>
-            <p className="font-bold text-slate-400">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 animate-in fade-in duration-700">
+        <div className="w-full max-w-sm mx-auto space-y-8">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center p-4 mb-4 bg-white rounded-full text-indigo-500 animate-in zoom-in duration-500 delay-150">
+              {mode === "infinite" ? (
+                <Infinity size={48} />
+              ) : (
+                <CheckCircle size={48} />
+              )}
+            </div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+              {mode === "infinite" ? "Session Paused" : "All Done!"}
+            </h1>
+            <p className="text-slate-500 font-medium">
               {mode === "infinite"
-                ? "Great endurance practice!"
-                : "Here is how you did"}
+                ? "Great mental workout."
+                : "You've completed your set."}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 border-2 bg-emerald-50 rounded-2xl border-emerald-100">
-              <div className="text-3xl font-black text-emerald-500">
-                {sessionStats.correct}
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 space-y-6 animate-in slide-in-from-bottom-8 duration-700 delay-200">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-emerald-50 text-center border border-emerald-100">
+                <span className="block text-3xl font-black text-emerald-500">
+                  {sessionStats.correct}
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/70">
+                  Correct
+                </span>
               </div>
-              <div className="text-xs font-bold uppercase text-emerald-400">
-                Correct
+              <div className="p-4 rounded-2xl bg-rose-50 text-center border border-rose-100">
+                <span className="block text-3xl font-black text-rose-500">
+                  {sessionStats.incorrect}
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-600/70">
+                  Incorrect
+                </span>
               </div>
             </div>
-            <div className="p-4 border-2 bg-rose-50 rounded-2xl border-rose-100">
-              <div className="text-3xl font-black text-rose-500">
-                {sessionStats.incorrect}
-              </div>
-              <div className="text-xs font-bold uppercase text-rose-400">
-                Incorrect
-              </div>
-            </div>
-          </div>
 
-          <div className="pt-2">
-            <div className="mb-2 text-sm font-bold uppercase text-slate-400">
-              Accuracy
-            </div>
-            <div className="w-full h-4 overflow-hidden border rounded-full bg-slate-100 border-slate-200">
-              <div
-                className="h-full transition-all duration-1000 bg-indigo-500 rounded-full"
-                style={{ width: `${accuracy}%` }}
-              ></div>
-            </div>
-            <div className="mt-1 text-xs font-bold text-right text-indigo-500">
-              {accuracy}%
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm font-bold text-slate-400 uppercase tracking-wider">
+                <span>Accuracy</span>
+                <span>{accuracy}%</span>
+              </div>
+              <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${accuracy}%` }}
+                />
+              </div>
             </div>
           </div>
 
           <button
             onClick={() => withSound(() => navigate("/"))}
-            className="flex items-center justify-center w-full py-4 space-x-2 font-bold tracking-wide text-white uppercase transition-all border-b-4 bg-slate-700 rounded-xl border-slate-800 active:border-b-0 active:translate-y-1"
+            className="w-full py-4 text-lg font-bold text-white uppercase tracking-widest bg-slate-800 rounded-2xl border-b-4 border-slate-950 hover:bg-slate-700 transition-all active:border-b-0 active:translate-y-1 animate-in fade-in duration-700 delay-500"
           >
-            <Home size={18} />
-            <span>Back to Home</span>
+            Back to Library
           </button>
         </div>
       </div>
@@ -400,7 +391,13 @@ const Exercise: React.FC = () => {
               ? "Translate / Identify"
               : "Define"}
           </h3>
-          <div className="text-2xl font-black leading-relaxed text-center duration-300 md:text-3xl text-slate-700 animate-in zoom-in-95">
+          <div
+            className={`leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 ${
+              currentQ?.item.type === ItemType.DEFINITION
+                ? "text-lg font-bold text-left px-4"
+                : "text-2xl md:text-3xl font-black text-center"
+            }`}
+          >
             "{currentQ?.questionText}"
           </div>
         </div>

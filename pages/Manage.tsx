@@ -15,10 +15,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { withSound } from "../utils/sound";
-import { useRootBackGuard } from "../hooks/useRootBackGuard";
 
 const Manage: React.FC = () => {
-  useRootBackGuard(true);
   const { items, updateItem, deleteItem, addItem, settings, updateSettings } =
     useStore();
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null);
@@ -194,35 +192,6 @@ const Manage: React.FC = () => {
               <Plus size={18} />
               <span>Add Item</span>
             </button>
-
-            <div className="flex items-center flex-1 px-4 py-2 space-x-4 bg-white border-2 rounded-xl border-slate-200">
-              <div className="p-2 text-indigo-500 rounded-lg bg-indigo-50 shrink-0">
-                <Sliders size={20} />
-              </div>
-              <div className="flex-1 w-full">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase">
-                  Max Questions
-                </label>
-                <div className="flex items-center w-full space-x-3">
-                  <input
-                    type="range"
-                    min="5"
-                    max="50"
-                    step="5"
-                    value={settings.maxQuestionsPerSession}
-                    onChange={(e) =>
-                      updateSettings({
-                        maxQuestionsPerSession: parseInt(e.target.value),
-                      })
-                    }
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 accent-indigo-500"
-                  />
-                  <span className="w-6 font-bold text-right text-slate-700">
-                    {settings.maxQuestionsPerSession}
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
