@@ -19,6 +19,7 @@ interface StoreContextType {
   deleteCategory: (id: string) => void;
   updateStats: (id: string, isCorrect: boolean) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
+  importData: (newItems: MemoryItem[], newCategories: Category[]) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -204,6 +205,34 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
+  const importData = (newItems: MemoryItem[], newCategories: Category[]) => {
+    // Merge strategies could vary. Here we append.
+    // For categories, if ID exists, we might skip or overwrite?
+    // Let's assume we just append missing ones or merge carefully.
+    // Actually, simple append for now, relying on UUIDs to be likely unique if generated elsewhere,
+    // or if the user is importing from a different export.
+    // If IDs collide, we probably want to keep the existing one or overwrite?
+    // Let's just spread them in.
+
+    setCategories((prev) => {
+      const combined = [...prev, ...newCategories];
+      // remove duplicates by ID just in case
+      const unique = Array.from(
+        new Map(combined.map((c) => [c.id, c])).values()
+      );
+      return unique;
+    });
+
+    setItems((prev) => {
+      const combined = [...prev, ...newItems];
+      // remove duplicates by ID
+      const unique = Array.from(
+        new Map(combined.map((i) => [i.id, i])).values()
+      );
+      return unique;
+    });
+  };
+
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center text-slate-500">
@@ -225,6 +254,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
         deleteCategory,
         updateStats,
         updateSettings,
+        importData,
       }}
     >
       {children}

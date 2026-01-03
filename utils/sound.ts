@@ -84,7 +84,11 @@ export const playFinish = () => {
  */
 export const withSound = (callback: () => void, delay: number = 150) => {
   playClick();
-  setTimeout(() => {
+  if (delay === 0) {
     callback();
-  }, delay);
+  } else {
+    setTimeout(() => {
+      callback();
+    }, delay);
+  }
 };

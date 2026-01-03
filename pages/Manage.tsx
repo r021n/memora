@@ -14,6 +14,11 @@ import {
   Plus,
   X,
   AlertCircle,
+  Upload,
+  Download,
+  Folder,
+  ArrowLeft,
+  Search,
 } from "lucide-react";
 import { withSound } from "../utils/sound";
 
@@ -28,11 +33,19 @@ const Manage: React.FC = () => {
     categories,
     addCategory,
     deleteCategory,
+    importData, // Add this to context destructuring
   } = useStore();
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  // -- View & Search State --
+  const [viewMode, setViewMode] = useState<"GROUPS" | "ITEMS">("GROUPS");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null
+  );
+  const [searchQuery, setSearchQuery] = useState("");
 
   // -- Edit State --
   const [editTerm, setEditTerm] = useState("");
@@ -51,10 +64,129 @@ const Manage: React.FC = () => {
   // Helpers
   const categoryOptions = categories.map((c) => ({ id: c.id, label: c.name }));
 
+  // Derived State
+  const filteredItems = items.filter((item) => {
+    // 1. Filter by Category
+    if (selectedCategoryId === null) {
+      // "All" group - all items
+    } else {
+      if (item.categoryId !== selectedCategoryId) return false;
+    }
+
+    // 2. Filter by Search Query
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const termMatch = item.term.toLowerCase().includes(q);
+    const meaningMatch = item.meanings.some((m) => m.toLowerCase().includes(q));
+    const descMatch = item.description?.toLowerCase().includes(q);
+
+    return termMatch || meaningMatch || descMatch;
+  });
+
+  // Calculate Group Stats
+  const getGroupStats = (catId: string | null) => {
+    const groupItems = items.filter((i) =>
+      catId === null ? true : i.categoryId === catId
+    );
+    return { count: groupItems.length };
+  };
+
   // Reset delete confirmation when modal closes or item changes
   useEffect(() => {
     setIsConfirmingDelete(false);
   }, [selectedItem]);
+
+  // --- Handlers ---
+
+  const handleGroupClick = (catId: string | null) => {
+    withSound(() => {
+      setSelectedCategoryId(catId);
+      setViewMode("ITEMS");
+      setSearchQuery(""); // clear search when entering a group
+    });
+  };
+
+  const handleBackToGroups = () => {
+    withSound(() => {
+      setViewMode("GROUPS");
+      setSelectedCategoryId(null);
+    });
+  };
+
+  const handleDownload = (e: React.MouseEvent, catId: string | null) => {
+    e.stopPropagation();
+    withSound(() => {
+      const groupItems = items.filter((i) =>
+        catId === null ? true : i.categoryId === catId
+      );
+      let groupName = "All_Items";
+      if (catId) {
+        const cat = categories.find((c) => c.id === catId);
+        groupName = cat ? cat.name.replace(/\s+/g, "_") : "Unknown_Group";
+      }
+
+      const dataToExport = {
+        exportDate: new Date().toISOString(),
+        groupName: groupName,
+        categoryId: catId,
+        items: groupItems,
+        // If exporting All, we might want to include categories too so they can be restored?
+        // Or if exporting a specific group, include that category definition?
+        // For simplicity, let's include the relevant categories.
+        categories: catId
+          ? categories.filter((c) => c.id === catId)
+          : categories,
+      };
+
+      const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `memora_${groupName}_${new Date().getTime()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  };
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    withSound(() => {
+      fileInputRef.current?.click();
+    }, 0);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.items && Array.isArray(json.items)) {
+          // Validate or sanitize if needed
+          // For now, assume structure is correct or partial
+          withSound(() => {
+            importData(json.items, json.categories || []);
+            alert(`Successfully imported ${json.items.length} items.`);
+          });
+        } else {
+          alert("Invalid file format. JSON must contain an 'items' array.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Failed to parse JSON file.");
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
 
   // --- Edit Functions ---
 
@@ -201,117 +333,224 @@ const Manage: React.FC = () => {
     setAddMeanings(addMeanings.filter((_, i) => i !== idx));
 
   return (
-    <div className="max-w-5xl min-h-screen px-8 pt-20 pb-24 mx-auto sm:pb-10">
-      {/* Header & Settings */}
-      <div className="mb-8 space-y-6">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-700">Library</h1>
-            <p className="font-medium text-slate-500">Manage your collection</p>
-          </div>
+    <div className="max-w-6xl min-h-screen px-6 pt-20 pb-24 mx-auto sm:pb-10">
+      {/* Hidden File Input for Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept=".json"
+      />
 
-          <div className="flex flex-col w-full gap-3 sm:flex-row md:w-auto">
-            <button
-              onClick={handleOpenCategory}
-              className="flex items-center justify-center px-4 py-3 space-x-2 text-sm font-bold tracking-wide text-indigo-500 uppercase transition-all bg-white border-b-4 border-slate-200 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-slate-50 whitespace-nowrap"
-            >
-              <Sliders size={18} />
-              <span>Categories</span>
-            </button>
-            <button
-              onClick={handleOpenAdd}
-              className="flex items-center justify-center px-4 py-3 space-x-2 text-sm font-bold tracking-wide text-white uppercase transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-indigo-600 whitespace-nowrap"
-            >
-              <Plus size={18} />
-              <span>Add Item</span>
-            </button>
+      {/* Header Area */}
+      <div className="mb-8">
+        {viewMode === "GROUPS" ? (
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div>
+              <h1 className="text-3xl font-extrabold text-slate-700">
+                Library
+              </h1>
+              <p className="font-medium text-slate-500">
+                Manage your collections
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleUploadClick}
+                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold text-slate-600 transition-all bg-white border-b-4 border-slate-200 rounded-xl hover:bg-slate-50 active:border-b-0 active:translate-y-1"
+              >
+                <Upload size={18} />
+                <span>Import JSON</span>
+              </button>
+              <button
+                onClick={handleOpenCategory}
+                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold text-indigo-500 transition-all bg-white border-b-4 border-slate-200 rounded-xl hover:bg-slate-50 active:border-b-0 active:translate-y-1"
+              >
+                <Sliders size={18} />
+                <span>Categories</span>
+              </button>
+              <button
+                onClick={handleOpenAdd}
+                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl hover:bg-indigo-600 active:border-b-0 active:translate-y-1"
+              >
+                <Plus size={18} />
+                <span>Add Item</span>
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                onClick={handleBackToGroups}
+                className="p-2 transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                <ArrowLeft size={24} />
+              </button>
+              <h2 className="text-2xl font-bold text-slate-700">
+                {selectedCategoryId === null
+                  ? "All Items"
+                  : categories.find((c) => c.id === selectedCategoryId)?.name ||
+                    "Group"}
+              </h2>
+            </div>
+            <div className="relative w-full">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                <Search size={20} />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search items..."
+                className="w-full pl-10 pr-4 py-3 font-medium bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-400 text-slate-700"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Grid of Cards */}
-      {items.length === 0 ? (
-        <div className="py-20 text-center bg-white border-2 border-dashed rounded-2xl border-slate-300">
-          <p className="font-bold text-slate-400">
-            No items yet. Add some to get started!
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
+      {/* Main Content */}
+      {viewMode === "GROUPS" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* 1. All Items Card */}
+          <div
+            onClick={() => handleGroupClick(null)}
+            className="group relative bg-white rounded-2xl border-2 border-slate-200 border-b-4 p-6 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/10 transition-all duration-200 active:scale-[0.98]"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+                <Folder size={24} />
+              </div>
+              <button
+                onClick={(e) => handleDownload(e, null)}
+                className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Download All"
+              >
+                <Download size={20} />
+              </button>
+            </div>
+            <h3 className="text-xl font-bold text-slate-700 mb-1">All Items</h3>
+            <p className="text-slate-500 font-medium">{items.length} items</p>
+          </div>
+
+          {/* 2. Category Cards */}
+          {categories.map((cat) => (
             <div
-              key={item.id}
-              onClick={() => openEditModal(item)}
-              className={`group relative bg-white rounded-2xl border-2 p-5 cursor-pointer transition-all active:scale-[0.98] duration-200 ${
-                !item.isActive
-                  ? "opacity-60 border-slate-200 bg-slate-50"
-                  : "border-slate-200 border-b-4 hover:border-indigo-300 hover:bg-indigo-50/30"
-              }`}
+              key={cat.id}
+              onClick={() => handleGroupClick(cat.id)}
+              className="group relative bg-white rounded-2xl border-2 border-slate-200 border-b-4 p-6 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/10 transition-all duration-200 active:scale-[0.98]"
             >
-              <div className="flex items-start justify-between mb-2">
-                <span
-                  className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
-                    item.type === ItemType.WORD
-                      ? "bg-blue-100 text-blue-600"
-                      : "bg-emerald-100 text-emerald-600"
-                  }`}
-                >
-                  {item.type}
-                </span>
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-white border-2 border-slate-100 text-slate-500 rounded-xl group-hover:bg-white/80">
+                  <Folder size={24} />
+                </div>
                 <button
-                  onClick={(e) => toggleStatus(item, e)}
-                  className={`transition-colors ${
-                    item.isActive ? "text-indigo-500" : "text-slate-300"
-                  }`}
+                  onClick={(e) => handleDownload(e, cat.id)}
+                  className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="Download Group"
                 >
-                  {item.isActive ? (
-                    <ToggleRight size={32} />
-                  ) : (
-                    <ToggleLeft size={32} />
-                  )}
+                  <Download size={20} />
                 </button>
               </div>
-
-              <h3 className="mb-1 text-lg font-bold text-slate-700 line-clamp-1">
-                {item.term}
+              <h3 className="text-xl font-bold text-slate-700 mb-1 line-clamp-1">
+                {cat.name}
               </h3>
-              <p className="text-sm text-slate-500 font-medium line-clamp-2 min-h-[2.5rem]">
-                {item.type === ItemType.WORD
-                  ? item.meanings.join(", ")
-                  : item.description}
+              <p className="text-slate-500 font-medium">
+                {getGroupStats(cat.id).count} items
               </p>
-
-              {item.categoryId && (
-                <div className="mt-3">
-                  <span className="inline-block px-2 py-1 text-[10px] font-bold text-slate-500 bg-slate-100 rounded-md">
-                    {categories.find((c) => c.id === item.categoryId)?.name ||
-                      "Unknown"}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-3 mt-4 text-xs font-bold border-t-2 border-slate-100 text-slate-400">
-                <div className="flex items-center space-x-1 text-emerald-500">
-                  <CheckCircle2 size={16} />
-                  <span>{item.stats.correct}</span>
-                </div>
-                <div className="flex items-center space-x-1 text-rose-400">
-                  <XCircle size={16} />
-                  <span>{item.stats.incorrect}</span>
-                </div>
-                <div>
-                  {item.stats.correct + item.stats.incorrect > 0
-                    ? Math.round(
-                        (item.stats.correct /
-                          (item.stats.correct + item.stats.incorrect)) *
-                          100
-                      )
-                    : 0}
-                  %
-                </div>
-              </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div>
+          {filteredItems.length === 0 ? (
+            <div className="py-20 text-center bg-white border-2 border-dashed rounded-2xl border-slate-300">
+              <p className="font-bold text-slate-400">
+                {searchQuery
+                  ? "No matching items found."
+                  : "No items in this group."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredItems.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => openEditModal(item)}
+                  className={`group relative bg-white rounded-2xl border-2 p-5 cursor-pointer transition-all active:scale-[0.98] duration-200 ${
+                    !item.isActive
+                      ? "opacity-60 border-slate-200 bg-slate-50"
+                      : "border-slate-200 border-b-4 hover:border-indigo-300 hover:bg-indigo-50/30"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <span
+                      className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
+                        item.type === ItemType.WORD
+                          ? "bg-blue-100 text-blue-600"
+                          : "bg-emerald-100 text-emerald-600"
+                      }`}
+                    >
+                      {item.type}
+                    </span>
+                    <button
+                      onClick={(e) => toggleStatus(item, e)}
+                      className={`transition-colors ${
+                        item.isActive ? "text-indigo-500" : "text-slate-300"
+                      }`}
+                    >
+                      {item.isActive ? (
+                        <ToggleRight size={32} />
+                      ) : (
+                        <ToggleLeft size={32} />
+                      )}
+                    </button>
+                  </div>
+
+                  <h3 className="mb-1 text-lg font-bold text-slate-700 line-clamp-1">
+                    {item.term}
+                  </h3>
+                  <p className="text-sm text-slate-500 font-medium line-clamp-2 min-h-[2.5rem]">
+                    {item.type === ItemType.WORD
+                      ? item.meanings.join(", ")
+                      : item.description}
+                  </p>
+
+                  {item.categoryId && (
+                    <div className="mt-3">
+                      <span className="inline-block px-2 py-1 text-[10px] font-bold text-slate-500 bg-slate-100 rounded-md">
+                        {categories.find((c) => c.id === item.categoryId)
+                          ?.name || "Unknown"}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-3 mt-4 text-xs font-bold border-t-2 border-slate-100 text-slate-400">
+                    <div className="flex items-center space-x-1 text-emerald-500">
+                      <CheckCircle2 size={16} />
+                      <span>{item.stats.correct}</span>
+                    </div>
+                    <div className="flex items-center space-x-1 text-rose-400">
+                      <XCircle size={16} />
+                      <span>{item.stats.incorrect}</span>
+                    </div>
+                    <div>
+                      {item.stats.correct + item.stats.incorrect > 0
+                        ? Math.round(
+                            (item.stats.correct /
+                              (item.stats.correct + item.stats.incorrect)) *
+                              100
+                          )
+                        : 0}
+                      %
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -481,7 +720,7 @@ const Manage: React.FC = () => {
         </Modal>
       )}
 
-      {/* Add New Modal (Replicated from Home logic for Manage page) */}
+      {/* Add New Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -629,8 +868,6 @@ const Manage: React.FC = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              // Execute immediately to avoid mobile issues, play sound in parallel
-              // disabling the delay ensures the action is always captured
               import("../utils/sound").then((mod) => mod.playClick());
               addCategory(newCategoryName);
               setNewCategoryName("");
