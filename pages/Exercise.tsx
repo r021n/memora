@@ -1,7 +1,14 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
-import { MemoryItem, QuestionData, ItemType } from "../types";
+import {
+  MemoryItem,
+  QuestionData,
+  ItemType,
+  QuestionType,
+  MatchingPair,
+} from "../types";
+import MatchingQuestion from "../components/MatchingQuestion";
 import {
   ArrowLeft,
   CheckCircle,
@@ -54,7 +61,7 @@ const Exercise: React.FC = () => {
 
   // Generate Questions Logic
   const generateQuestions = useCallback(
-    (count: number): QuestionData[] => {
+    (count: number, startIndex: number = 0): QuestionData[] => {
       // 1. Filter by active
       let activeItems: MemoryItem[] = items.filter(
         (i: MemoryItem) => i.isActive
@@ -72,9 +79,51 @@ const Exercise: React.FC = () => {
       // Check if we have enough items AFTER filtering
       if (activeItems.length < 4) return [];
 
-      const sessionItems = shuffle<MemoryItem>(activeItems).slice(0, count);
+      const generated: QuestionData[] = [];
 
-      return sessionItems.map((targetItem) => {
+      // Separate words for matching mode
+      const wordItems = activeItems.filter((i) => i.type === ItemType.WORD);
+
+      // Shuffle active items for normal questions to ensure variety
+      const shuffledActive = shuffle(activeItems);
+      let normalIndex = 0;
+
+      for (let i = 0; i < count; i++) {
+        const globalIndex = startIndex + i + 1;
+        const isMatchingRound = globalIndex % 4 === 0;
+
+        // Matching Mode Logic
+        if (
+          isMatchingRound &&
+          filter !== "DEFINITION" &&
+          wordItems.length >= 4
+        ) {
+          const selected = shuffle(wordItems).slice(0, 4);
+          const pairs: MatchingPair[] = selected.map((item) => {
+            const showTermLeft = Math.random() > 0.5;
+            const hasMeanings = item.meanings && item.meanings.length > 0;
+            const meaning = hasMeanings ? item.meanings[0] : "???";
+
+            return {
+              id: item.id,
+              leftContent: showTermLeft ? item.term : meaning,
+              rightContent: showTermLeft ? meaning : item.term,
+              item: item,
+            };
+          });
+
+          generated.push({
+            type: QuestionType.MATCHING,
+            pairs: pairs,
+          });
+          continue;
+        }
+
+        // Normal Question Logic
+        // Wrap around if we run out of unique items in this batch
+        const targetItem = shuffledActive[normalIndex % shuffledActive.length];
+        normalIndex++;
+
         let questionText = "";
         let correctAnswerText = "";
 
@@ -98,7 +147,7 @@ const Exercise: React.FC = () => {
           }
         }
 
-        // Generate Distractors (Total options should be 4, so 3 distractors)
+        // Generate Distractors
         const potentialDistractors = activeItems
           .filter((i) => i.id !== targetItem.id)
           .map((i) => {
@@ -113,24 +162,19 @@ const Exercise: React.FC = () => {
             }
           });
 
-        // Ensure unique distractors
         const uniqueDistractors = Array.from(new Set(potentialDistractors));
-        const distractors = shuffle(uniqueDistractors).slice(0, 3); // 3 Distractors + 1 Correct = 4 Total
+        const distractors = shuffle(uniqueDistractors).slice(0, 3);
 
-        // If for some reason we don't have enough distractors (should be caught by initial check, but safety net)
-        if (distractors.length < 3) {
-          // Fallback: This question might be invalid if we strictly require 4 options.
-          // For now, let's allow it but it might look weird.
-          // Better to handle this in validity check.
-        }
-
-        return {
+        generated.push({
+          type: QuestionType.MULTIPLE_CHOICE,
           item: targetItem,
           questionText,
           correctAnswerText,
           distractors,
-        };
-      });
+        });
+      }
+
+      return generated;
     },
     [items, filter, categoryId]
   );
@@ -162,8 +206,14 @@ const Exercise: React.FC = () => {
   useEffect(() => {
     if (gameState === GameState.PLAYING && questions[currentIndex]) {
       const q = questions[currentIndex];
-      const options = shuffle([q.correctAnswerText, ...q.distractors]);
-      setShuffledOptions(options);
+      if (
+        q.type === QuestionType.MULTIPLE_CHOICE &&
+        q.correctAnswerText &&
+        q.distractors
+      ) {
+        const options = shuffle([q.correctAnswerText, ...q.distractors]);
+        setShuffledOptions(options);
+      }
       setSelectedAnswer(null);
     }
   }, [gameState, currentIndex, questions]);
@@ -179,11 +229,36 @@ const Exercise: React.FC = () => {
     }
   }, [gameState]);
 
+  const isNavigating = React.useRef(false); // Ref to prevent double navigation
+
+  const handleMatchingComplete = useCallback(
+    (pairs: MatchingPair[]) => {
+      // Treat the whole matching session as 1 "Correct" point for the session stats
+      // But update stats for all involved items
+
+      pairs.forEach((p) => {
+        updateStats(p.item.id, true);
+      });
+
+      setSessionStats((prev) => ({
+        correct: prev.correct + 1,
+        incorrect: prev.incorrect,
+      }));
+
+      setIsCorrect(true);
+
+      setTimeout(() => {
+        setGameState(GameState.FEEDBACK);
+      }, 50); // Very fast transition for matching mode
+    },
+    [updateStats]
+  );
+
   const handleAnswer = (answer: string) => {
     if (gameState !== GameState.PLAYING) return;
 
     const currentQ = questions[currentIndex];
-    if (!currentQ) return;
+    if (!currentQ || currentQ.type !== QuestionType.MULTIPLE_CHOICE) return;
 
     setSelectedAnswer(answer);
     const correct = answer === currentQ.correctAnswerText;
@@ -203,7 +278,9 @@ const Exercise: React.FC = () => {
       setGameState(GameState.FEEDBACK);
     }, 150);
 
-    updateStats(currentQ.item.id, correct);
+    if (currentQ.item) {
+      updateStats(currentQ.item.id, correct);
+    }
 
     setSessionStats((prev) => ({
       correct: prev.correct + (correct ? 1 : 0),
@@ -212,10 +289,17 @@ const Exercise: React.FC = () => {
   };
 
   const handleNextQuestion = () => {
+    // Prevent double clicks / race conditions
+    if (gameState === GameState.PLAYING) return;
+    if (isNavigating.current) return;
+
+    isNavigating.current = true;
+
     withSound(() => {
       if (mode === "infinite") {
         // Generate one new question and append it
-        const nextQ = generateQuestions(1)[0];
+        // Pass current length to keep "Multiple of 4" logic consistent
+        const nextQ = generateQuestions(1, questions.length)[0];
         setQuestions((prev) => [...prev, nextQ]);
         setCurrentIndex((prev) => prev + 1);
         setGameState(GameState.PLAYING);
@@ -228,6 +312,11 @@ const Exercise: React.FC = () => {
           setGameState(GameState.FINISHED);
         }
       }
+
+      // Release lock after a short delay
+      setTimeout(() => {
+        isNavigating.current = false;
+      }, 500);
     });
   };
 
@@ -411,77 +500,90 @@ const Exercise: React.FC = () => {
 
       {/* Question Area */}
       <div className="flex flex-col items-center flex-1 w-full max-w-2xl p-6 pb-32 mx-auto">
-        <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[200px] mb-8">
-          <h3 className="mb-4 text-xs font-black tracking-widest uppercase text-slate-300">
-            {currentQ?.item.type === ItemType.WORD
-              ? "Translate / Identify"
-              : "Define"}
-          </h3>
+        {currentQ?.type === QuestionType.MATCHING && currentQ.pairs ? (
+          <MatchingQuestion
+            key={`match-${currentIndex}`}
+            pairs={currentQ.pairs}
+            onComplete={() => handleMatchingComplete(currentQ.pairs!)}
+          />
+        ) : (
+          <>
+            <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[200px] mb-8">
+              <h3 className="mb-4 text-xs font-black tracking-widest uppercase text-slate-300">
+                {currentQ?.item?.type === ItemType.WORD
+                  ? "Translate / Identify"
+                  : "Define"}
+              </h3>
 
-          {/* Optional Image Display */}
-          {currentQ?.item.imageUrl && (
-            <div className="mb-6">
-              <img
-                src={currentQ.item.imageUrl}
-                alt="Term illustration"
-                className="h-48 w-auto max-w-full rounded-2xl object-contain shadow-sm border-2 border-slate-100 bg-white"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            </div>
-          )}
+              {/* Optional Image Display */}
+              {currentQ?.item?.imageUrl && (
+                <div className="mb-6">
+                  <img
+                    src={currentQ.item.imageUrl}
+                    alt="Term illustration"
+                    className="h-48 w-auto max-w-full rounded-2xl object-contain shadow-sm border-2 border-slate-100 bg-white"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                </div>
+              )}
 
-          <div
-            className={`leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 ${
-              currentQ?.item.type === ItemType.DEFINITION
-                ? "text-lg font-bold text-left px-4"
-                : "text-2xl md:text-3xl font-black text-center"
-            }`}
-          >
-            "{currentQ?.questionText}"
-          </div>
-        </div>
-
-        {/* Options Grid */}
-        <div className="grid w-full gap-4">
-          {shuffledOptions.map((option, idx) => {
-            // Colors based on state
-            let btnClass =
-              "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"; // Default
-            let borderClass = "border-2 border-b-4";
-
-            // Logic for feedback state
-            if (gameState === GameState.FEEDBACK) {
-              if (option === currentQ.correctAnswerText) {
-                // Correct Answer (Green)
-                btnClass = "bg-emerald-500 border-emerald-600 text-white";
-              } else if (
-                option === selectedAnswer &&
-                option !== currentQ.correctAnswerText
-              ) {
-                // Wrong Selection (Red)
-                btnClass = "bg-rose-500 border-rose-600 text-white";
-              } else {
-                // Unselected (Dimmed)
-                btnClass =
-                  "bg-slate-50 border-transparent text-slate-300 opacity-40";
-                borderClass = "border-2";
-              }
-            }
-
-            return (
-              <button
-                key={idx}
-                disabled={gameState === GameState.FEEDBACK}
-                onClick={() => handleAnswer(option)}
-                className={`w-full p-4 rounded-2xl font-bold text-lg transition-all duration-100 transform active:scale-[0.98] active:border-b-2 active:translate-y-[2px] ${borderClass} ${btnClass} flex items-center justify-between group`}
+              <div
+                className={`leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 ${
+                  currentQ?.item?.type === ItemType.DEFINITION
+                    ? "text-lg font-bold text-left px-4"
+                    : "text-2xl md:text-3xl font-black text-center"
+                }`}
               >
-                <span>{option}</span>
-              </button>
-            );
-          })}
-        </div>
+                "{currentQ?.questionText}"
+              </div>
+            </div>
+
+            {/* Options Grid */}
+            <div className="grid w-full gap-4">
+              {shuffledOptions.map((option, idx) => {
+                // Colors based on state
+                let btnClass =
+                  "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"; // Default
+                let borderClass = "border-2 border-b-4";
+
+                // Logic for feedback state
+                if (gameState === GameState.FEEDBACK) {
+                  if (
+                    option === (currentQ as any).correctAnswerText &&
+                    isCorrect
+                  ) {
+                    // Correct Answer (Green) - Only show if user got it right
+                    btnClass = "bg-emerald-500 border-emerald-600 text-white";
+                  } else if (
+                    option === selectedAnswer &&
+                    option !== (currentQ as any).correctAnswerText
+                  ) {
+                    // Wrong Selection (Red)
+                    btnClass = "bg-rose-500 border-rose-600 text-white";
+                  } else {
+                    // Unselected or Hidden Correct Answer (Dimmed)
+                    btnClass =
+                      "bg-slate-50 border-transparent text-slate-300 opacity-40";
+                    borderClass = "border-2";
+                  }
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    disabled={gameState === GameState.FEEDBACK}
+                    onClick={() => handleAnswer(option)}
+                    className={`w-full p-4 rounded-2xl font-bold text-lg transition-all duration-100 transform active:scale-[0.98] active:border-b-2 active:translate-y-[2px] ${borderClass} ${btnClass} flex items-center justify-between group`}
+                  >
+                    <span>{option}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Feedback Popup / Bottom Sheet */}
@@ -520,16 +622,18 @@ const Exercise: React.FC = () => {
                   >
                     {isCorrect ? "Excellent!" : "Incorrect"}
                   </h3>
-                  {!isCorrect && (
-                    <div className="mt-1 text-rose-600">
-                      <span className="text-xs font-bold uppercase opacity-70">
-                        Correct Answer
-                      </span>
-                      <div className="text-lg font-bold leading-tight">
-                        {currentQ.correctAnswerText}
+
+                  {!isCorrect &&
+                    currentQ?.type === QuestionType.MULTIPLE_CHOICE && (
+                      <div className="mt-3 p-3 bg-white/60 rounded-xl border border-rose-200/60 text-left animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100">
+                        <div className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">
+                          Correct Answer
+                        </div>
+                        <div className="text-lg font-black text-rose-600 leading-tight">
+                          {currentQ.correctAnswerText}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
 

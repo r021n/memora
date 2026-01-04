@@ -30,9 +30,28 @@ export interface AppSettings {
   maxQuestionsPerSession: number;
 }
 
+export enum QuestionType {
+  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
+  MATCHING = "MATCHING",
+}
+
+export interface MatchingPair {
+  id: string;
+  leftContent: string; // Hidden initially
+  rightContent: string; // Visible
+  item: MemoryItem; // Keep reference
+}
+
 export interface QuestionData {
-  item: MemoryItem;
-  questionText: string;
-  correctAnswerText: string;
-  distractors: string[]; // Wrong answers
+  type: QuestionType;
+  // Common
+  item?: MemoryItem; // For Multiple Choice (main item)
+
+  // Multiple Choice Specific
+  questionText?: string;
+  correctAnswerText?: string;
+  distractors?: string[];
+
+  // Matching Specific
+  pairs?: MatchingPair[];
 }
