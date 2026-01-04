@@ -25,6 +25,8 @@ const Toast: React.FC<ToastProps> = ({
   }, [duration, onClose]);
 
   const bgColor = type === "success" ? "bg-emerald-500" : "bg-rose-500";
+  const borderColor =
+    type === "success" ? "border-emerald-600" : "border-rose-600";
   const icon =
     type === "success" ? (
       <CheckCircle className="w-5 h-5 text-white" />
@@ -34,15 +36,17 @@ const Toast: React.FC<ToastProps> = ({
 
   return (
     <div
-      className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg shadow-slate-200/50 animate-in slide-in-from-top-4 fade-in duration-300 ${bgColor}`}
+      className={`fixed top-4 left-4 right-4 mx-auto max-w-sm z-50 flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${bgColor} ${borderColor}`}
     >
       <div className="flex-shrink-0">{icon}</div>
-      <p className="text-sm font-bold text-white">{message}</p>
+      <p className="flex-1 text-sm font-bold text-white leading-tight">
+        {message}
+      </p>
       <button
         onClick={onClose}
-        className="p-1 ml-2 text-white/50 hover:text-white transition-colors"
+        className="flex-shrink-0 p-1 text-white/60 active:text-white transition-colors"
       >
-        <X size={16} />
+        <X size={18} />
       </button>
     </div>
   );

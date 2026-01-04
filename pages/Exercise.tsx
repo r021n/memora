@@ -364,8 +364,17 @@ const Exercise: React.FC = () => {
           You need at least <strong>4</strong> active items to start.
         </p>
         <button
-          onClick={() => withSound(() => navigate("/"))}
-          className="px-6 py-3 font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1"
+          onClick={() => {
+            const btn = document.activeElement as HTMLButtonElement;
+            if (btn) {
+              btn.style.transform = "translateY(4px)";
+              btn.style.borderBottomWidth = "2px";
+            }
+            setTimeout(() => {
+              withSound(() => navigate("/"));
+            }, 150);
+          }}
+          className="px-6 py-3 font-bold text-white bg-indigo-500 border-2 border-indigo-500 border-b-[6px] border-b-indigo-700 rounded-xl transition-transform active:translate-y-1 active:border-b-2"
         >
           Back Home
         </button>
@@ -381,39 +390,50 @@ const Exercise: React.FC = () => {
         ? Math.round((sessionStats.correct / totalAnswered) * 100)
         : 0;
 
+    const handleBackToLibrary = () => {
+      const button = document.activeElement as HTMLButtonElement;
+      if (button) {
+        button.style.transform = "translateY(4px)";
+        button.style.borderBottomWidth = "0px";
+      }
+      setTimeout(() => {
+        withSound(() => navigate("/"));
+      }, 150);
+    };
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 animate-in fade-in duration-700">
-        <div className="w-full max-w-sm mx-auto space-y-8">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50">
+        <div className="w-full max-w-sm mx-auto space-y-6">
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center p-4 mb-4 bg-white rounded-full text-indigo-500 animate-in zoom-in duration-500 delay-150">
+            <div className="inline-flex items-center justify-center p-3 mb-3 bg-white rounded-full text-indigo-500 border-2 border-slate-100">
               {mode === "infinite" ? (
-                <Infinity size={48} />
+                <Infinity size={40} />
               ) : (
-                <CheckCircle size={48} />
+                <CheckCircle size={40} />
               )}
             </div>
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight">
               {mode === "infinite" ? "Session Paused" : "All Done!"}
             </h1>
-            <p className="text-slate-500 font-medium">
+            <p className="text-slate-500 font-medium text-sm">
               {mode === "infinite"
                 ? "Great mental workout."
                 : "You've completed your set."}
             </p>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 space-y-6 animate-in slide-in-from-bottom-8 duration-700 delay-200">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-emerald-50 text-center border border-emerald-100">
-                <span className="block text-3xl font-black text-emerald-500">
+          <div className="bg-white rounded-2xl p-5 border-2 border-slate-100 space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-emerald-50 text-center border-2 border-emerald-100">
+                <span className="block text-2xl font-black text-emerald-500">
                   {sessionStats.correct}
                 </span>
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/70">
                   Correct
                 </span>
               </div>
-              <div className="p-4 rounded-2xl bg-rose-50 text-center border border-rose-100">
-                <span className="block text-3xl font-black text-rose-500">
+              <div className="p-3 rounded-xl bg-rose-50 text-center border-2 border-rose-100">
+                <span className="block text-2xl font-black text-rose-500">
                   {sessionStats.incorrect}
                 </span>
                 <span className="text-xs font-bold uppercase tracking-wider text-rose-600/70">
@@ -423,13 +443,13 @@ const Exercise: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between text-sm font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
                 <span>Accuracy</span>
                 <span>{accuracy}%</span>
               </div>
-              <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                  className="h-full bg-indigo-500 rounded-full"
                   style={{ width: `${accuracy}%` }}
                 />
               </div>
@@ -437,8 +457,8 @@ const Exercise: React.FC = () => {
           </div>
 
           <button
-            onClick={() => withSound(() => navigate("/"))}
-            className="w-full py-4 text-lg font-bold text-white uppercase tracking-widest bg-slate-800 rounded-2xl border-b-4 border-slate-950 hover:bg-slate-700 transition-all active:border-b-0 active:translate-y-1 animate-in fade-in duration-700 delay-500"
+            onClick={handleBackToLibrary}
+            className="w-full py-4 text-base font-bold text-white uppercase tracking-widest bg-slate-800 rounded-xl border-2 border-slate-800 border-b-[6px] border-b-slate-950 transition-transform active:translate-y-1 active:border-b-2"
           >
             Back to Library
           </button>
@@ -638,11 +658,20 @@ const Exercise: React.FC = () => {
               </div>
 
               <button
-                onClick={handleNextQuestion}
-                className={`w-full py-3 rounded-3xl font-bold text-lg text-white border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center space-x-2 uppercase tracking-wide ${
+                onClick={() => {
+                  const btn = document.activeElement as HTMLButtonElement;
+                  if (btn) {
+                    btn.style.transform = "translateY(4px)";
+                    btn.style.borderBottomWidth = "2px";
+                  }
+                  setTimeout(() => {
+                    handleNextQuestion();
+                  }, 80);
+                }}
+                className={`w-full py-3 rounded-xl font-bold text-base text-white border-2 border-b-[6px] transition-transform active:translate-y-1 active:border-b-2 flex items-center justify-center space-x-2 uppercase tracking-wide ${
                   isCorrect
-                    ? "bg-emerald-500 border-2 border-emerald-700 hover:bg-emerald-600"
-                    : "bg-rose-500 border-2 border-rose-700 hover:bg-rose-600"
+                    ? "bg-emerald-500 border-emerald-500 border-b-emerald-700"
+                    : "bg-rose-500 border-rose-500 border-b-rose-700"
                 }`}
               >
                 <span>Continue</span>

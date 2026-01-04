@@ -111,7 +111,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 onClick={() => handleLeftClick(pair.id)}
                 disabled={isMatched || isShaking || errorPair !== null}
                 className={`
-                  relative min-h-[4.5rem] w-full rounded-xl border-2 flex items-center justify-center p-1 text-center transition-all duration-200
+                  relative min-h-[6rem] w-full rounded-xl border-2 flex items-center justify-center p-3 text-center transition-all duration-200
                   ${isShaking ? "animate-shake bg-rose-50 border-rose-300" : ""}
                   ${
                     !isShaking && isMatched
@@ -131,7 +131,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 `}
               >
                 {showContent ? (
-                  <span className="font-bold text-xs sm:text-sm leading-tight break-words w-full animate-in zoom-in duration-200">
+                  <span className="font-bold text-2xl sm:text-2xl leading-tight break-words w-full animate-in zoom-in duration-200">
                     {pair.leftContent}
                   </span>
                 ) : (
@@ -163,7 +163,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                 onClick={() => handleRightClick(pair.id)}
                 disabled={isMatched || isShaking || errorPair !== null}
                 className={`
-                  relative min-h-[4.5rem] w-full rounded-xl border-2 flex items-center justify-center p-1 text-center transition-all duration-200
+                  relative min-h-[6rem] w-full rounded-xl border-2 flex items-center justify-center p-2 text-center transition-all duration-200
                   ${isShaking ? "animate-shake bg-rose-50 border-rose-300" : ""}
                   ${
                     !isShaking && isMatched
@@ -177,7 +177,7 @@ const MatchingQuestion: React.FC<MatchingQuestionProps> = ({
                   }
                 `}
               >
-                <span className="font-bold text-xs sm:text-sm leading-tight break-words w-full">
+                <span className="font-bold text-2xl sm:text-2xl leading-tight break-words w-full">
                   {pair.rightContent}
                 </span>
 

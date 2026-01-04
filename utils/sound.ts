@@ -18,14 +18,11 @@ export const initAudio = async () => {
 
 // --- SYNTHS ---
 
-// For UI Clicks: MembraneSynth gives a nice "tap" sound
-// Adjusted envelope to be snappier to reduce audio lag perception
-const clickSynth = new Tone.MembraneSynth({
-  volume: +10,
-  pitchDecay: 0.05,
-  octaves: 2,
-  oscillator: { type: "sine" },
-  envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
+// For UI Clicks: Light "tuk/tak" sound
+const clickSynth = new Tone.Synth({
+  volume: 3,
+  oscillator: { type: "triangle" },
+  envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.02 },
 }).toDestination();
 
 // For Correct Answers
@@ -53,8 +50,8 @@ export const playClick = () => {
   if (Tone.context.state !== "running") {
     initAudio().catch(() => {});
   }
-  // Quick, muted tap
-  clickSynth.triggerAttackRelease("G2", "32n");
+  // Light, quick tap sound
+  clickSynth.triggerAttackRelease("C6", "64n");
 };
 
 export const playCorrect = () => {
