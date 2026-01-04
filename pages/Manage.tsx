@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useStore } from "../context/StoreContext";
 import Modal from "../components/Modal";
 import CustomSelect from "../components/CustomSelect";
+import Toast from "../components/Toast";
+import LoadingOverlay from "../components/LoadingOverlay";
 import { ItemType, MemoryItem } from "../types";
 import {
   Edit2,
@@ -36,6 +38,24 @@ const Manage: React.FC = () => {
     importData, // Add this to context destructuring
   } = useStore();
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null);
+
+  // -- UI Feedback State --
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Group Deletion State
+  const [deleteGroupModal, setDeleteGroupModal] = useState<{
+    isOpen: boolean;
+    categoryId: string | null;
+    categoryName: string;
+  }>({
+    isOpen: false,
+    categoryId: null,
+    categoryName: "",
+  });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -49,6 +69,7 @@ const Manage: React.FC = () => {
 
   // -- Edit State --
   const [editTerm, setEditTerm] = useState("");
+  const [editType, setEditType] = useState<ItemType>(ItemType.WORD);
   const [editMeanings, setEditMeanings] = useState<string[]>([]);
   const [editDescription, setEditDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string>("");
@@ -166,28 +187,41 @@ const Manage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (json.items && Array.isArray(json.items)) {
-          // Validate or sanitize if needed
-          // For now, assume structure is correct or partial
-          withSound(() => {
-            importData(json.items, json.categories || []);
-            alert(`Successfully imported ${json.items.length} items.`);
-          });
-        } else {
-          alert("Invalid file format. JSON must contain an 'items' array.");
+    // Start loading animation immediately
+    setIsLoading(true);
+
+    // Use a timeout to ensure the loading bar is shown for at least 3 seconds
+    setTimeout(() => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = JSON.parse(event.target?.result as string);
+          if (json.items && Array.isArray(json.items)) {
+            withSound(() => {
+              importData(json.items, json.categories || []);
+              setIsLoading(false);
+              setToast({
+                message: `Successfully imported ${json.items.length} items.`,
+                type: "success",
+              });
+            });
+          } else {
+            setIsLoading(false);
+            setToast({
+              message: "Invalid file format. 'items' array missing.",
+              type: "error",
+            });
+          }
+        } catch (err) {
+          console.error(err);
+          setIsLoading(false);
+          setToast({ message: "Failed to parse JSON file.", type: "error" });
+        } finally {
+          if (fileInputRef.current) fileInputRef.current.value = "";
         }
-      } catch (err) {
-        console.error(err);
-        alert("Failed to parse JSON file.");
-      } finally {
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }
-    };
-    reader.readAsText(file);
+      };
+      reader.readAsText(file);
+    }, 3000); // 3 seconds delay
   };
 
   // --- Edit Functions ---
@@ -195,6 +229,7 @@ const Manage: React.FC = () => {
   const openEditModal = (item: MemoryItem) => {
     withSound(() => {
       setSelectedItem(item);
+      setEditType(item.type);
       setEditTerm(item.term);
       setEditMeanings(item.meanings.length ? [...item.meanings] : [""]);
       setEditDescription(item.description || "");
@@ -211,18 +246,23 @@ const Manage: React.FC = () => {
     withSound(() => {
       const updates: Partial<MemoryItem> = {
         term: editTerm,
+        type: editType,
         categoryId: editCategoryId || undefined,
         imageUrl: editImageUrl.trim() || undefined,
       };
 
-      if (selectedItem.type === ItemType.WORD) {
+      if (editType === ItemType.WORD) {
         updates.meanings = editMeanings.filter((m) => m.trim() !== "");
+        // Clear description if present in DB for this item previously
+        updates.description = undefined;
       } else {
         updates.description = editDescription;
+        updates.meanings = [];
       }
 
       updateItem(selectedItem.id, updates);
       setSelectedItem(null);
+      setToast({ message: "Item updated successfully!", type: "success" });
     });
   };
 
@@ -290,6 +330,43 @@ const Manage: React.FC = () => {
     withSound(() => setIsCategoryModalOpen(true));
   };
 
+  // Group Deletion Handlers
+  const handleDeleteGroupClick = (
+    e: React.MouseEvent,
+    categoryId: string,
+    categoryName: string
+  ) => {
+    e.stopPropagation();
+    withSound(() => {
+      setDeleteGroupModal({
+        isOpen: true,
+        categoryId,
+        categoryName,
+      });
+    });
+  };
+
+  const handleConfirmDeleteGroup = () => {
+    if (deleteGroupModal.categoryId) {
+      withSound(() => {
+        deleteCategory(deleteGroupModal.categoryId!);
+        setDeleteGroupModal({
+          isOpen: false,
+          categoryId: null,
+          categoryName: "",
+        });
+      });
+    }
+  };
+
+  const handleCancelDeleteGroup = () => {
+    setDeleteGroupModal({
+      isOpen: false,
+      categoryId: null,
+      categoryName: "",
+    });
+  };
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!addTerm.trim()) return;
@@ -341,6 +418,14 @@ const Manage: React.FC = () => {
 
   return (
     <div className="max-w-6xl min-h-screen px-6 pt-20 pb-24 mx-auto sm:pb-10">
+      <LoadingOverlay isVisible={isLoading} message="Importing Data..." />
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       {/* Hidden File Input for Upload */}
       <input
         type="file"
@@ -453,13 +538,22 @@ const Manage: React.FC = () => {
                 <div className="p-3 bg-white border-2 border-slate-100 text-slate-500 rounded-xl group-hover:bg-white/80">
                   <Folder size={24} />
                 </div>
-                <button
-                  onClick={(e) => handleDownload(e, cat.id)}
-                  className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                  title="Download Group"
-                >
-                  <Download size={20} />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={(e) => handleDownload(e, cat.id)}
+                    className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                    title="Download Group"
+                  >
+                    <Download size={20} />
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteGroupClick(e, cat.id, cat.name)}
+                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                    title="Delete Group"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
               <h3 className="text-xl font-bold text-slate-700 mb-1 line-clamp-1">
                 {cat.name}
@@ -588,6 +682,32 @@ const Manage: React.FC = () => {
               </button>
             </div>
 
+            {/* Type Toggle for Edit */}
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setEditType(ItemType.WORD)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+                  editType === ItemType.WORD
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                Word
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditType(ItemType.DEFINITION)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+                  editType === ItemType.DEFINITION
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                Definition
+              </button>
+            </div>
+
             {/* Category Select for Edit */}
             <div>
               <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
@@ -627,7 +747,7 @@ const Manage: React.FC = () => {
                 />
               </div>
 
-              {selectedItem.type === ItemType.WORD ? (
+              {editType === ItemType.WORD ? (
                 <div>
                   <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
                     Meanings
@@ -945,6 +1065,48 @@ const Manage: React.FC = () => {
                 </div>
               ))
             )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Group Confirmation Modal */}
+      <Modal
+        isOpen={deleteGroupModal.isOpen}
+        onClose={handleCancelDeleteGroup}
+        title="Delete Group?"
+      >
+        <div className="space-y-6">
+          <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-rose-100 bg-rose-50 rounded-2xl">
+            <div className="p-4 mb-4 bg-white rounded-full text-rose-500">
+              <AlertCircle size={48} />
+            </div>
+            <h3 className="text-xl font-bold text-slate-700">Are you sure?</h3>
+            <p className="mt-2 font-medium text-slate-500">
+              You are about to delete{" "}
+              <span className="font-bold text-slate-700">
+                "{deleteGroupModal.categoryName}"
+              </span>
+              .
+              <br />
+              All items in this group will be permanently removed.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleCancelDeleteGroup}
+              className="flex-1 py-3 font-bold tracking-wide uppercase transition-colors text-slate-500 hover:bg-slate-100 rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDeleteGroup}
+              className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all bg-rose-500 border-b-4 border-rose-700 hover:bg-rose-600 rounded-xl active:border-b-0 active:translate-y-1"
+            >
+              Delete
+            </button>
           </div>
         </div>
       </Modal>

@@ -171,14 +171,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const deleteCategory = (id: string) => {
-    // Also remove category reference from items?
-    // User requirement: "user dapat membuat kategori kategori. untuk definisi atau word bebas untuk diinclude ke category atau tidak"
-    // Usually safest to clear the reference.
-    setItems((prev) =>
-      prev.map((item) =>
-        item.categoryId === id ? { ...item, categoryId: undefined } : item
-      )
-    );
+    // Cascade delete: remove items that belong to this category
+    setItems((prev) => prev.filter((item) => item.categoryId !== id));
     setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
