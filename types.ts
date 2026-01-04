@@ -19,6 +19,7 @@ export interface MemoryItem {
   term: string; // The main word or the term being defined
   meanings: string[]; // For Word type: list of meanings
   description?: string; // For Definition type: the long description
+  imageUrl?: string; // Optional image URL
   isActive: boolean;
   categoryId?: string;
   stats: Stats;

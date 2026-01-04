@@ -417,6 +417,21 @@ const Exercise: React.FC = () => {
               ? "Translate / Identify"
               : "Define"}
           </h3>
+
+          {/* Optional Image Display */}
+          {currentQ?.item.imageUrl && (
+            <div className="mb-6">
+              <img
+                src={currentQ.item.imageUrl}
+                alt="Term illustration"
+                className="h-48 w-auto max-w-full rounded-2xl object-contain shadow-sm border-2 border-slate-100 bg-white"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
+          )}
+
           <div
             className={`leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 ${
               currentQ?.item.type === ItemType.DEFINITION

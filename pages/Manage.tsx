@@ -52,6 +52,7 @@ const Manage: React.FC = () => {
   const [editMeanings, setEditMeanings] = useState<string[]>([]);
   const [editDescription, setEditDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string>("");
+  const [editImageUrl, setEditImageUrl] = useState("");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   // -- Add State --
@@ -60,6 +61,7 @@ const Manage: React.FC = () => {
   const [addMeanings, setAddMeanings] = useState<string[]>([""]);
   const [addDescription, setAddDescription] = useState("");
   const [addCategoryId, setAddCategoryId] = useState<string>("");
+  const [addImageUrl, setAddImageUrl] = useState("");
 
   // Helpers
   const categoryOptions = categories.map((c) => ({ id: c.id, label: c.name }));
@@ -197,6 +199,7 @@ const Manage: React.FC = () => {
       setEditMeanings(item.meanings.length ? [...item.meanings] : [""]);
       setEditDescription(item.description || "");
       setEditCategoryId(item.categoryId || "");
+      setEditImageUrl(item.imageUrl || "");
       setIsConfirmingDelete(false);
     });
   };
@@ -209,6 +212,7 @@ const Manage: React.FC = () => {
       const updates: Partial<MemoryItem> = {
         term: editTerm,
         categoryId: editCategoryId || undefined,
+        imageUrl: editImageUrl.trim() || undefined,
       };
 
       if (selectedItem.type === ItemType.WORD) {
@@ -300,6 +304,7 @@ const Manage: React.FC = () => {
           meanings: filteredMeanings,
           isActive: true,
           categoryId: addCategoryId || undefined,
+          imageUrl: addImageUrl.trim() || undefined,
         });
       } else {
         if (!addDescription.trim()) return;
@@ -310,6 +315,7 @@ const Manage: React.FC = () => {
           description: addDescription,
           isActive: true,
           categoryId: addCategoryId || undefined,
+          imageUrl: addImageUrl.trim() || undefined,
         });
       }
 
@@ -318,6 +324,7 @@ const Manage: React.FC = () => {
       setAddMeanings([""]);
       setAddDescription("");
       setAddCategoryId("");
+      setAddImageUrl("");
       setAddMode(ItemType.WORD);
       setIsAddModalOpen(false);
     });
@@ -594,6 +601,19 @@ const Manage: React.FC = () => {
               />
             </div>
 
+            <div>
+              <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
+                Image URL (Optional)
+              </label>
+              <input
+                type="text"
+                value={editImageUrl}
+                onChange={(e) => setEditImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="w-full px-4 py-3 font-medium bg-white border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
+              />
+            </div>
+
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
                 <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
@@ -763,6 +783,19 @@ const Manage: React.FC = () => {
               value={addCategoryId}
               onChange={setAddCategoryId}
               placeholder="No Category"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
+              Image URL (Optional)
+            </label>
+            <input
+              type="text"
+              value={addImageUrl}
+              onChange={(e) => setAddImageUrl(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
             />
           </div>
 
