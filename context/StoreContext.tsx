@@ -7,26 +7,31 @@ import React, {
 } from "react";
 import { MemoryItem, AppSettings, Category } from "../types";
 import { generateUUID } from "../utils/uuid";
+import { dbService, STORES } from "../utils/db";
 
 interface StoreContextType {
   items: MemoryItem[];
   categories: Category[];
   settings: AppSettings;
-  addItem: (item: Omit<MemoryItem, "id" | "stats" | "createdAt">) => void;
-  updateItem: (id: string, updates: Partial<MemoryItem>) => void;
-  deleteItem: (id: string) => void;
-  addCategory: (name: string) => void;
-  deleteCategory: (id: string) => void;
+  loading: boolean;
+  addItem: (
+    item: Omit<MemoryItem, "id" | "stats" | "createdAt">
+  ) => Promise<void>;
+  updateItem: (id: string, updates: Partial<MemoryItem>) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  addCategory: (name: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   updateStats: (id: string, isCorrect: boolean) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
-  importData: (newItems: MemoryItem[], newCategories: Category[]) => void;
+  importData: (
+    newItems: MemoryItem[],
+    newCategories: Category[]
+  ) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const STORAGE_KEY_ITEMS = "memora_items";
-const STORAGE_KEY_CATEGORIES = "memora_categories";
-const STORAGE_KEY_SETTINGS = "memora_settings";
+const SETTINGS_ID = "app_settings";
 
 const DEFAULT_SETTINGS: AppSettings = {
   maxQuestionsPerSession: 10,
@@ -86,71 +91,49 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
-  // Load from local storage on mount
+  // Initial Load & Migration
   useEffect(() => {
-    try {
-      const storedItems = localStorage.getItem(STORAGE_KEY_ITEMS);
-      const storedCategories = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-      const storedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [dbItems, dbCategories, dbSettings] = await Promise.all([
+          dbService.getAll<MemoryItem>(STORES.ITEMS),
+          dbService.getAll<Category>(STORES.CATEGORIES),
+          dbService.get<{ key: string } & AppSettings>(
+            STORES.SETTINGS,
+            SETTINGS_ID
+          ),
+        ]);
 
-      if (storedItems) {
-        let parsed: any[] = JSON.parse(storedItems);
-        // Migration logic for legacy data
-        const migrated = parsed.map((item) => {
-          const pairs = item.pairs || item.meanings || [];
-          if (item.description && pairs.length === 0) {
-            pairs.push(item.description);
-          }
+        // Check if DB is empty to trigger seed
+        if (dbItems.length === 0 && dbCategories.length === 0) {
+          // Seed data if truly fresh
+          await dbService.bulkPut(STORES.ITEMS, SEED_DATA);
+          setItems(SEED_DATA);
+        } else {
+          setItems(dbItems);
+          setCategories(dbCategories);
+        }
 
-          // Clean up old fields
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { type, description, ...rest } = item;
-          return {
-            ...rest,
-            pairs: pairs,
-            key: item.key || item.term || "Unknown",
-          };
-        });
-
-        setItems(migrated);
-      } else {
-        setItems(SEED_DATA);
+        if (dbSettings) {
+          // exclude 'key' from settings object
+          const { key, ...rest } = dbSettings;
+          setSettings(rest as AppSettings);
+        }
+      } catch (err) {
+        console.error("Failed to load or migrate data:", err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      if (storedCategories) {
-        setCategories(JSON.parse(storedCategories));
-      }
-
-      if (storedSettings) {
-        setSettings(JSON.parse(storedSettings));
-      }
-    } catch (e) {
-      console.error("Failed to load data", e);
-    } finally {
-      setLoading(false);
-    }
+    loadData();
   }, []);
 
-  // Save to local storage whenever state changes
-  useEffect(() => {
-    if (!loading) {
-      localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
-    }
-  }, [items, loading]);
+  // Sync helpers - we update local state immediately for UI responsiveness,
+  // and async update DB in background.
 
-  useEffect(() => {
-    if (!loading) {
-      localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categories));
-    }
-  }, [categories, loading]);
-
-  useEffect(() => {
-    if (!loading) {
-      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
-    }
-  }, [settings, loading]);
-
-  const addItem = (
+  const addItem = async (
     newItemData: Omit<MemoryItem, "id" | "stats" | "createdAt">
   ) => {
     const newItem: MemoryItem = {
@@ -160,38 +143,58 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
       createdAt: Date.now(),
     };
     setItems((prev) => [newItem, ...prev]);
+    await dbService.put(STORES.ITEMS, newItem);
   };
 
-  const updateItem = (id: string, updates: Partial<MemoryItem>) => {
+  const updateItem = async (id: string, updates: Partial<MemoryItem>) => {
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+      prev.map((item) => {
+        if (item.id === id) {
+          const updated = { ...item, ...updates };
+          // Fire and forget DB update (or catch error)
+          dbService.put(STORES.ITEMS, updated).catch(console.error);
+          return updated;
+        }
+        return item;
+      })
     );
   };
 
-  const deleteItem = (id: string) => {
+  const deleteItem = async (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+    await dbService.delete(STORES.ITEMS, id);
   };
 
-  const addCategory = (name: string) => {
+  const addCategory = async (name: string) => {
     if (!name.trim()) return;
     const newCategory: Category = {
       id: generateUUID(),
       name: name.trim(),
     };
     setCategories((prev) => [...prev, newCategory]);
+    await dbService.put(STORES.CATEGORIES, newCategory);
   };
 
-  const deleteCategory = (id: string) => {
-    // Cascade delete: remove items that belong to this category
+  const deleteCategory = async (id: string) => {
+    // Remove items locally
     setItems((prev) => prev.filter((item) => item.categoryId !== id));
     setCategories((prev) => prev.filter((c) => c.id !== id));
+
+    // Remove from DB
+    await dbService.delete(STORES.CATEGORIES, id);
+    // Cascade delete in DB
+    const allItems = await dbService.getAll<MemoryItem>(STORES.ITEMS);
+    const itemsToDelete = allItems.filter((i) => i.categoryId === id);
+    for (const item of itemsToDelete) {
+      await dbService.delete(STORES.ITEMS, item.id);
+    }
   };
 
   const updateStats = (id: string, isCorrect: boolean) => {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          return {
+          const updated = {
             ...item,
             stats: {
               correct: isCorrect ? item.stats.correct + 1 : item.stats.correct,
@@ -200,6 +203,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
                 : item.stats.incorrect + 1,
             },
           };
+          dbService.put(STORES.ITEMS, updated).catch(console.error);
+          return updated;
         }
         return item;
       })
@@ -207,20 +212,22 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      dbService
+        .put(STORES.SETTINGS, { key: SETTINGS_ID, ...updated })
+        .catch(console.error);
+      return updated;
+    });
   };
 
-  const importData = (newItems: any[], newCategories: Category[]) => {
+  const importData = async (newItems: any[], newCategories: Category[]) => {
     // Migration logic for imported data
     const migratedItems: MemoryItem[] = newItems.map((item) => {
-      // Handle legacy fields
       const pairs = item.pairs || item.meanings || [];
       if (item.description && pairs.length === 0) {
         pairs.push(item.description);
       }
-
-      // We reconstruct the item to conform to current MemoryItem interface
-      // while dropping old fields like 'term', 'meanings', 'type', 'description'
       return {
         id: item.id || generateUUID(),
         key: item.key || item.term || "Unknown",
@@ -233,9 +240,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
       };
     });
 
+    // Update DB first
+    await dbService.bulkPut(STORES.CATEGORIES, newCategories);
+    await dbService.bulkPut(STORES.ITEMS, migratedItems);
+
+    // Update State
     setCategories((prev) => {
       const combined = [...prev, ...newCategories];
-      // remove duplicates by ID just in case
       const unique = Array.from(
         new Map(combined.map((c) => [c.id, c])).values()
       );
@@ -244,7 +255,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
 
     setItems((prev) => {
       const combined = [...prev, ...migratedItems];
-      // remove duplicates by ID
       const unique = Array.from(
         new Map(combined.map((i) => [i.id, i])).values()
       );
@@ -254,8 +264,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
 
   if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center text-slate-500">
-        Loading...
+      <div className="h-screen w-full flex flex-col items-center justify-center text-slate-500 gap-4">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="font-semibold animate-pulse">Initializing Database...</p>
       </div>
     );
   }
@@ -266,6 +277,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
         items,
         categories,
         settings,
+        loading,
         addItem,
         updateItem,
         deleteItem,

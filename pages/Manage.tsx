@@ -6,7 +6,6 @@ import Toast from "../components/Toast";
 import LoadingOverlay from "../components/LoadingOverlay";
 import { MemoryItem } from "../types";
 import {
-  Edit2,
   Trash2,
   ToggleLeft,
   ToggleRight,
@@ -23,6 +22,8 @@ import {
   Search,
 } from "lucide-react";
 import { withSound } from "../utils/sound";
+import { compressImage } from "../utils/image";
+import { Image as ImageIcon } from "lucide-react";
 
 const Manage: React.FC = () => {
   const {
@@ -44,7 +45,10 @@ const Manage: React.FC = () => {
     message: string;
     type: "success" | "error";
   } | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Group Deletion State
   const [deleteGroupModal, setDeleteGroupModal] = useState<{
@@ -131,45 +135,53 @@ const Manage: React.FC = () => {
     });
   };
 
-  const handleDownload = (e: React.MouseEvent, catId: string | null) => {
+  const handleDownload = async (e: React.MouseEvent, catId: string | null) => {
     e.stopPropagation();
-    withSound(() => {
-      const groupItems = items.filter((i) =>
-        catId === null ? true : i.categoryId === catId
-      );
-      let groupName = "All_Items";
-      if (catId) {
-        const cat = categories.find((c) => c.id === catId);
-        groupName = cat ? cat.name.replace(/\s+/g, "_") : "Unknown_Group";
+    withSound(async () => {
+      try {
+        setIsExporting(true);
+        // Small delay to allow UI to update
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const groupItems = items.filter((i) =>
+          catId === null ? true : i.categoryId === catId
+        );
+        let groupName = "All_Items";
+        if (catId) {
+          const cat = categories.find((c) => c.id === catId);
+          groupName = cat ? cat.name.replace(/\s+/g, "_") : "Unknown_Group";
+        }
+
+        const dataToExport = {
+          exportDate: new Date().toISOString(),
+          groupName: groupName,
+          categoryId: catId,
+          items: groupItems.map((item) => ({
+            ...item,
+            stats: { correct: 0, incorrect: 0 },
+          })),
+          categories: catId
+            ? categories.filter((c) => c.id === catId)
+            : categories,
+        };
+
+        const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `memora_${groupName}_${new Date().getTime()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Export failed", error);
+        setToast({ message: "Export failed", type: "error" });
+      } finally {
+        setIsExporting(false);
       }
-
-      const dataToExport = {
-        exportDate: new Date().toISOString(),
-        groupName: groupName,
-        categoryId: catId,
-        items: groupItems.map((item) => ({
-          ...item,
-          stats: { correct: 0, incorrect: 0 },
-        })),
-        // If exporting All, we might want to include categories too so they can be restored?
-        // Or if exporting a specific group, include that category definition?
-        // For simplicity, let's include the relevant categories.
-        categories: catId
-          ? categories.filter((c) => c.id === catId)
-          : categories,
-      };
-
-      const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `memora_${groupName}_${new Date().getTime()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     });
   };
 
@@ -188,15 +200,15 @@ const Manage: React.FC = () => {
     // Start loading animation immediately
     setIsLoading(true);
 
-    // Use a timeout to ensure the loading bar is shown for at least 3 seconds
+    // Use a timeout to ensure the loading bar is shown for at least 1 second
     setTimeout(() => {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const json = JSON.parse(event.target?.result as string);
           if (json.items && Array.isArray(json.items)) {
-            withSound(() => {
-              importData(json.items, json.categories || []);
+            withSound(async () => {
+              await importData(json.items, json.categories || []);
               setIsLoading(false);
               setToast({
                 message: `Successfully imported ${json.items.length} items.`,
@@ -219,7 +231,27 @@ const Manage: React.FC = () => {
         }
       };
       reader.readAsText(file);
-    }, 3000); // 3 seconds delay
+    }, 1000);
+  };
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (url: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsCompressing(true);
+      const compressedBase64 = await compressImage(file);
+      setter(compressedBase64);
+      setToast({ message: "Image uploaded and compressed!", type: "success" });
+    } catch (error) {
+      console.error("Image upload failed", error);
+      setToast({ message: "Failed to process image.", type: "error" });
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   // --- Edit Functions ---
@@ -393,6 +425,11 @@ const Manage: React.FC = () => {
   return (
     <div className="max-w-6xl min-h-screen px-6 pt-20 pb-24 mx-auto sm:pb-10">
       <LoadingOverlay isVisible={isLoading} message="Importing Data..." />
+      <LoadingOverlay isVisible={isExporting} message="Preparing Export..." />
+      <LoadingOverlay
+        isVisible={isCompressing}
+        message="Compressing Image..."
+      />
       {toast && (
         <Toast
           message={toast.message}
@@ -669,15 +706,35 @@ const Manage: React.FC = () => {
 
             <div>
               <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
-                Image URL (Optional)
+                Image
               </label>
-              <input
-                type="text"
-                value={editImageUrl}
-                onChange={(e) => setEditImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-3 font-medium bg-white border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
-              />
+              <div className="flex items-center gap-4">
+                {editImageUrl && (
+                  <div className="relative w-24 h-24 overflow-hidden border-2 rounded-xl border-slate-200">
+                    <img
+                      src={editImageUrl}
+                      alt="Preview"
+                      className="object-cover w-full h-full"
+                    />
+                    <button
+                      onClick={() => setEditImageUrl("")}
+                      className="absolute top-1 right-1 p-1 bg-white rounded-full shadow-sm text-rose-500 hover:bg-rose-50"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+                <label className="flex flex-col items-center justify-center w-24 h-24 transition-all border-2 border-dashed cursor-pointer rounded-xl border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 text-slate-400 hover:text-indigo-500">
+                  <ImageIcon size={24} />
+                  <span className="text-[10px] font-bold mt-1">Upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageUpload(e, setEditImageUrl)}
+                  />
+                </label>
+              </div>
             </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
@@ -814,15 +871,36 @@ const Manage: React.FC = () => {
 
           <div>
             <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-              Image URL (Optional)
+              Image
             </label>
-            <input
-              type="text"
-              value={addImageUrl}
-              onChange={(e) => setAddImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
-            />
+            <div className="flex items-center gap-4">
+              {addImageUrl && (
+                <div className="relative w-24 h-24 overflow-hidden border-2 rounded-xl border-slate-200">
+                  <img
+                    src={addImageUrl}
+                    alt="Preview"
+                    className="object-cover w-full h-full"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAddImageUrl("")}
+                    className="absolute top-1 right-1 p-1 bg-white rounded-full shadow-sm text-rose-500 hover:bg-rose-50"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+              <label className="flex flex-col items-center justify-center w-24 h-24 transition-all border-2 border-dashed cursor-pointer rounded-xl border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 text-slate-400 hover:text-indigo-500">
+                <ImageIcon size={24} />
+                <span className="text-[10px] font-bold mt-1">Upload</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleImageUpload(e, setAddImageUrl)}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="space-y-4">
