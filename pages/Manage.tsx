@@ -20,6 +20,7 @@ import {
   Folder,
   ArrowLeft,
   Search,
+  RotateCcw,
 } from "lucide-react";
 import { withSound } from "../utils/sound";
 import { compressImage } from "../utils/image";
@@ -31,12 +32,11 @@ const Manage: React.FC = () => {
     updateItem,
     deleteItem,
     addItem,
-    settings,
-    updateSettings,
     categories,
     addCategory,
     deleteCategory,
     importData, // Add this to context destructuring
+    resetStatsForCategory,
   } = useStore();
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null);
 
@@ -49,6 +49,16 @@ const Manage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+
+  const [resetStatsModal, setResetStatsModal] = useState<{
+    isOpen: boolean;
+    categoryId: string | null;
+    categoryName: string;
+  }>({
+    isOpen: false,
+    categoryId: null,
+    categoryName: "",
+  });
 
   // Group Deletion State
   const [deleteGroupModal, setDeleteGroupModal] = useState<{
@@ -132,6 +142,47 @@ const Manage: React.FC = () => {
     withSound(() => {
       setViewMode("GROUPS");
       setSelectedCategoryId(null);
+    });
+  };
+
+  const handleOpenResetStats = () => {
+    const name =
+      selectedCategoryId === null
+        ? "All Items"
+        : categories.find((c) => c.id === selectedCategoryId)?.name || "Group";
+
+    withSound(() => {
+      setResetStatsModal({
+        isOpen: true,
+        categoryId: selectedCategoryId,
+        categoryName: name,
+      });
+    });
+  };
+
+  const handleConfirmResetStats = async () => {
+    const id = resetStatsModal.categoryId;
+    const name = resetStatsModal.categoryName;
+
+    withSound(async () => {
+      try {
+        const count = await resetStatsForCategory(id);
+        setToast({
+          message: `Reset stats for ${count} item${
+            count === 1 ? "" : "s"
+          } in ${name}.`,
+          type: "success",
+        });
+      } catch (err) {
+        console.error(err);
+        setToast({ message: "Failed to reset stats.", type: "error" });
+      } finally {
+        setResetStatsModal({
+          isOpen: false,
+          categoryId: null,
+          categoryName: "",
+        });
+      }
     });
   };
 
@@ -461,7 +512,7 @@ const Manage: React.FC = () => {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleUploadClick}
-                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold text-slate-600 transition-all bg-white border-b-4 border-slate-200 rounded-xl hover:bg-slate-50 active:border-b-0 active:translate-y-1"
+                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold transition-all bg-white border-b-4 text-slate-600 border-slate-200 rounded-xl hover:bg-slate-50 active:border-b-0 active:translate-y-1"
               >
                 <Upload size={18} />
                 <span>Import JSON</span>
@@ -487,7 +538,7 @@ const Manage: React.FC = () => {
             <div className="flex items-center gap-2 mb-2">
               <button
                 onClick={handleBackToGroups}
-                className="p-2 transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                className="p-2 transition-colors rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
               >
                 <ArrowLeft size={24} />
               </button>
@@ -508,9 +559,18 @@ const Manage: React.FC = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search items..."
-                  className="w-full pl-10 pr-4 py-3 font-medium bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-400 text-slate-700"
+                  className="w-full py-3 pl-10 pr-4 font-medium bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-400 text-slate-700"
                 />
               </div>
+              <button
+                onClick={handleOpenResetStats}
+                disabled={filteredItems.length === 0}
+                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold transition-all bg-white border-b-4 text-rose-500 border-slate-200 rounded-xl hover:bg-rose-50 active:border-b-0 active:translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw size={18} />
+                <span className="hidden sm:inline">Reset</span>
+              </button>
+
               <button
                 onClick={handleOpenAdd}
                 className="flex items-center px-4 py-3 space-x-2 text-sm font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl hover:bg-indigo-600 active:border-b-0 active:translate-y-1"
@@ -525,26 +585,26 @@ const Manage: React.FC = () => {
 
       {/* Main Content */}
       {viewMode === "GROUPS" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {/* 1. All Items Card */}
           <div
             onClick={() => handleGroupClick(null)}
             className="group relative bg-white rounded-2xl border-2 border-slate-200 border-b-4 p-6 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/10 transition-all duration-200 active:scale-[0.98]"
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 text-indigo-600 bg-indigo-100 rounded-xl">
                 <Folder size={24} />
               </div>
               <button
                 onClick={(e) => handleDownload(e, null)}
-                className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                className="p-2 transition-colors rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"
                 title="Download All"
               >
                 <Download size={20} />
               </button>
             </div>
-            <h3 className="text-xl font-bold text-slate-700 mb-1">All Items</h3>
-            <p className="text-slate-500 font-medium">{items.length} items</p>
+            <h3 className="mb-1 text-xl font-bold text-slate-700">All Items</h3>
+            <p className="font-medium text-slate-500">{items.length} items</p>
           </div>
 
           {/* 2. Category Cards */}
@@ -554,31 +614,31 @@ const Manage: React.FC = () => {
               onClick={() => handleGroupClick(cat.id)}
               className="group relative bg-white rounded-2xl border-2 border-slate-200 border-b-4 p-6 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/10 transition-all duration-200 active:scale-[0.98]"
             >
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-white border-2 border-slate-100 text-slate-500 rounded-xl group-hover:bg-white/80">
                   <Folder size={24} />
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={(e) => handleDownload(e, cat.id)}
-                    className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                    className="p-2 transition-colors rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"
                     title="Download Group"
                   >
                     <Download size={20} />
                   </button>
                   <button
                     onClick={(e) => handleDeleteGroupClick(e, cat.id, cat.name)}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                    className="p-2 transition-colors rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50"
                     title="Delete Group"
                   >
                     <Trash2 size={20} />
                   </button>
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-slate-700 mb-1 line-clamp-1">
+              <h3 className="mb-1 text-xl font-bold text-slate-700 line-clamp-1">
                 {cat.name}
               </h3>
-              <p className="text-slate-500 font-medium">
+              <p className="font-medium text-slate-500">
                 {getGroupStats(cat.id).count} items
               </p>
             </div>
@@ -718,7 +778,7 @@ const Manage: React.FC = () => {
                     />
                     <button
                       onClick={() => setEditImageUrl("")}
-                      className="absolute top-1 right-1 p-1 bg-white rounded-full shadow-sm text-rose-500 hover:bg-rose-50"
+                      className="absolute p-1 bg-white rounded-full shadow-sm top-1 right-1 text-rose-500 hover:bg-rose-50"
                     >
                       <X size={12} />
                     </button>
@@ -884,7 +944,7 @@ const Manage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setAddImageUrl("")}
-                    className="absolute top-1 right-1 p-1 bg-white rounded-full shadow-sm text-rose-500 hover:bg-rose-50"
+                    className="absolute p-1 bg-white rounded-full shadow-sm top-1 right-1 text-rose-500 hover:bg-rose-50"
                   >
                     <X size={12} />
                   </button>
@@ -1000,7 +1060,7 @@ const Manage: React.FC = () => {
             <button
               type="submit"
               disabled={!newCategoryName.trim()}
-              className="px-4 py-3 font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="flex items-center justify-center px-4 py-3 font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus size={24} />
               <span className="ml-2 sm:hidden">Add Category</span>
@@ -1009,7 +1069,7 @@ const Manage: React.FC = () => {
 
           <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
             {categories.length === 0 ? (
-              <p className="text-center text-slate-400 font-medium py-4">
+              <p className="py-4 font-medium text-center text-slate-400">
                 No categories yet.
               </p>
             ) : (
@@ -1021,7 +1081,7 @@ const Manage: React.FC = () => {
                   <span className="font-bold text-slate-700">{cat.name}</span>
                   <button
                     onClick={() => withSound(() => deleteCategory(cat.id))}
-                    className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                    className="p-2 transition-colors text-slate-400 hover:text-rose-500"
                   >
                     <Trash2 size={20} />
                   </button>
@@ -1066,9 +1126,64 @@ const Manage: React.FC = () => {
             <button
               type="button"
               onClick={handleConfirmDeleteGroup}
-              className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all bg-rose-500 border-b-4 border-rose-700 hover:bg-rose-600 rounded-xl active:border-b-0 active:translate-y-1"
+              className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all border-b-4 bg-rose-500 border-rose-700 hover:bg-rose-600 rounded-xl active:border-b-0 active:translate-y-1"
             >
               Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reset Stats Confirmation Modal (ITEMS view) */}
+      <Modal
+        isOpen={resetStatsModal.isOpen}
+        onClose={() =>
+          setResetStatsModal({
+            isOpen: false,
+            categoryId: null,
+            categoryName: "",
+          })
+        }
+        title="Reset Stats?"
+      >
+        <div className="space-y-6">
+          <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-amber-200 bg-amber-50 rounded-2xl">
+            <div className="p-4 mb-4 bg-white border-2 rounded-full text-amber-600 border-amber-100">
+              <AlertCircle size={48} />
+            </div>
+            <h3 className="text-xl font-bold text-slate-700">Are you sure?</h3>
+            <p className="mt-2 font-medium text-slate-500">
+              This will reset lifetime correct/incorrect counters for all items
+              in{" "}
+              <span className="font-bold text-slate-700">
+                "{resetStatsModal.categoryName}"
+              </span>
+              .
+              <br />
+              This action can’t be undone.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setResetStatsModal({
+                  isOpen: false,
+                  categoryId: null,
+                  categoryName: "",
+                })
+              }
+              className="flex-1 py-3 font-bold tracking-wide uppercase transition-colors text-slate-500 hover:bg-slate-100 rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmResetStats}
+              className="flex-1 py-3 font-bold tracking-wide text-white uppercase transition-all border-b-4 bg-rose-500 border-rose-700 hover:bg-rose-600 rounded-xl active:border-b-0 active:translate-y-1"
+            >
+              Reset
             </button>
           </div>
         </div>

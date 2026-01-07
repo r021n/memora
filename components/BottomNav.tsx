@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home, Database, Trophy } from "lucide-react";
+import { Home, Database } from "lucide-react";
 
 const BottomNav: React.FC = () => {
   const navClass = ({ isActive }: { isActive: boolean }) =>

@@ -22,6 +22,7 @@ interface StoreContextType {
   addCategory: (name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   updateStats: (id: string, isCorrect: boolean) => void;
+  resetStatsForCategory: (categoryId: string | null) => Promise<number>;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   importData: (
     newItems: MemoryItem[],
@@ -211,6 +212,30 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
     );
   };
 
+  const resetStatsForCategory = async (categoryId: string | null) => {
+    const itemsToReset = items.filter((item) =>
+      categoryId === null ? true : item.categoryId === categoryId
+    );
+    if (itemsToReset.length === 0) return 0;
+
+    const updatedItems = itemsToReset.map((item) => ({
+      ...item,
+      stats: { correct: 0, incorrect: 0 },
+    }));
+
+    setItems((prev) =>
+      prev.map((item) => {
+        if (categoryId === null || item.categoryId === categoryId) {
+          return { ...item, stats: { correct: 0, incorrect: 0 } };
+        }
+        return item;
+      })
+    );
+
+    await dbService.bulkPut(STORES.ITEMS, updatedItems);
+    return updatedItems.length;
+  };
+
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
@@ -284,6 +309,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
         addCategory,
         deleteCategory,
         updateStats,
+        resetStatsForCategory,
         updateSettings,
         importData,
       }}

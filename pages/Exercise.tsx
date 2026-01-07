@@ -8,7 +8,7 @@ import {
   XCircle,
   RefreshCw,
   ArrowRight,
-  Infinity,
+  Repeat,
 } from "lucide-react";
 import {
   playCorrect,
@@ -43,25 +43,95 @@ const Exercise: React.FC = () => {
     correct: 0,
     incorrect: 0,
   });
-  const [questionMode, setQuestionMode] = useState<"aligned" | "randomized">(
-    "aligned"
-  );
+  const [questionMode, setQuestionMode] = useState<
+    "aligned" | "randomized" | "pairToKey"
+  >("aligned");
   // Starting state: Check checkboxes unselected as requested, user must pick.
   // Using 'custom' with empty selection achieves "all uncheck".
   const [categoryMode, setCategoryMode] = useState<"all" | "custom">("custom");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [setupError, setSetupError] = useState<string | null>(null);
 
-  // Shuffle array utility
-  const shuffle = <T,>(array: T[]): T[] => {
-    return [...array].sort(() => Math.random() - 0.5);
-  };
+  // Shuffle array utility (unbiased Fisher–Yates)
+  const shuffle = useCallback(<T,>(array: T[]): T[] => {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }, []);
 
-  const getDifficultyWeight = (item: MemoryItem) => {
-    const total = item.stats.correct + item.stats.incorrect;
-    const accuracy = total === 0 ? 0 : item.stats.correct / total;
-    return 0.4 + (1 - accuracy); // higher weight for items with lower accuracy
-  };
+  // Smoothed accuracy to avoid extreme weighting when attempts are low.
+  // Laplace smoothing: unseen items start at 0.5.
+  const getSmoothedAccuracy = useCallback((item: MemoryItem) => {
+    const correct = item.stats.correct;
+    const incorrect = item.stats.incorrect;
+    const total = correct + incorrect;
+    return (correct + 1) / (total + 2);
+  }, []);
+
+  const getAverageAccuracy = useCallback(
+    (pool: MemoryItem[]) => {
+      if (pool.length === 0) return 0.5;
+      const sum = pool.reduce(
+        (acc, item) => acc + getSmoothedAccuracy(item),
+        0
+      );
+      return sum / pool.length;
+    },
+    [getSmoothedAccuracy]
+  );
+
+  // Weighting rule:
+  // - Items below average get higher weight (prioritized)
+  // - Items at/above average share baseline weight (still random)
+  const getBelowAverageWeight = useCallback(
+    (item: MemoryItem, avgAccuracy: number) => {
+      const acc = getSmoothedAccuracy(item);
+      const below = Math.max(0, avgAccuracy - acc);
+      // Tunable: higher multiplier = more aggressive prioritization.
+      const weight = 1 + below * 6;
+      return Math.max(0.05, weight);
+    },
+    [getSmoothedAccuracy]
+  );
+
+  // Weighted permutation without replacement (Efraimidis–Spirakis).
+  // Produces a random order where higher-weight items tend to appear earlier.
+  const weightedPermutation = useCallback(
+    <T,>(pool: T[], weightFn: (item: T) => number): T[] => {
+      return pool
+        .map((item) => {
+          const w = Math.max(0.0001, weightFn(item));
+          const u = Math.random();
+          const key = -Math.log(u) / w;
+          return { item, key };
+        })
+        .sort((a, b) => a.key - b.key)
+        .map((x) => x.item);
+    },
+    []
+  );
+
+  const pickWeighted = useCallback(
+    <T,>(pool: T[], weightFn: (item: T) => number): T | null => {
+      if (pool.length === 0) return null;
+      const weights = pool.map((x) => Math.max(0, weightFn(x)));
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      if (totalWeight <= 0)
+        return pool[Math.floor(Math.random() * pool.length)];
+
+      const r = Math.random() * totalWeight;
+      let cumulative = 0;
+      for (let i = 0; i < pool.length; i++) {
+        cumulative += weights[i];
+        if (r <= cumulative) return pool[i];
+      }
+      return pool[pool.length - 1];
+    },
+    []
+  );
 
   const getFilteredItems = useCallback(() => {
     let activeItems = items.filter((i) => i.isActive);
@@ -83,19 +153,32 @@ const Exercise: React.FC = () => {
     return activeItems;
   }, [items, filter, categoryId, selectedCategories, categoryMode]);
 
-  const pickWeightedItem = useCallback((pool: MemoryItem[]): MemoryItem => {
-    const shuffledPool = shuffle(pool);
-    const weights = shuffledPool.map((item) => getDifficultyWeight(item));
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    const r = Math.random() * totalWeight;
-    let cumulative = 0;
-
-    for (let i = 0; i < shuffledPool.length; i++) {
-      cumulative += weights[i];
-      if (r <= cumulative) return shuffledPool[i];
+  // For "pairToKey" mode, we only allow targets with unique keys
+  // to avoid ambiguous correct answers.
+  const getEligibleItemsForPairToKey = useCallback(() => {
+    const activeItems = getFilteredItems();
+    const keyCounts = new Map<string, number>();
+    for (const item of activeItems) {
+      const key = item.key.trim();
+      if (!key) continue;
+      keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
     }
 
-    return shuffledPool[0];
+    return activeItems.filter((item) => {
+      const key = item.key.trim();
+      const hasPair = item.pairs.some((p) => p && p.trim());
+      return Boolean(key) && hasPair && (keyCounts.get(key) || 0) === 1;
+    });
+  }, [getFilteredItems]);
+
+  // Avoid repeating the same target too frequently in infinite mode.
+  const recentTargetIds = React.useRef<string[]>([]);
+  const pushRecentTarget = useCallback((id: string, poolSize: number) => {
+    const window = Math.min(10, Math.max(2, Math.floor(poolSize / 3)));
+    recentTargetIds.current = [
+      id,
+      ...recentTargetIds.current.filter((x) => x !== id),
+    ].slice(0, window);
   }, []);
 
   const buildAlignedQuestion = useCallback(
@@ -121,7 +204,7 @@ const Exercise: React.FC = () => {
         distractors,
       };
     },
-    []
+    [shuffle]
   );
 
   const buildRandomizedQuestion = useCallback(
@@ -159,26 +242,106 @@ const Exercise: React.FC = () => {
         distractors,
       };
     },
-    []
+    [shuffle]
+  );
+
+  // Reverse multiple choice: question from one of the pairs, answers are keys.
+  // Guards:
+  // - target must have at least 1 non-empty pair
+  // - keys in pool must be unique (enforced by eligible pool)
+  // - need at least 3 distractor keys
+  const buildPairToKeyQuestion = useCallback(
+    (targetItem: MemoryItem, pool: MemoryItem[]): QuestionData | null => {
+      const availablePairs = targetItem.pairs
+        .map((p) => p?.trim())
+        .filter((p): p is string => Boolean(p));
+      if (availablePairs.length === 0) return null;
+
+      const questionText = shuffle(availablePairs)[0];
+      const correctAnswerText = targetItem.key;
+
+      const distractorKeys = pool
+        .filter((i) => i.id !== targetItem.id)
+        .map((i) => i.key)
+        .filter((k) => k && k !== correctAnswerText);
+
+      const uniqueDistractors = Array.from(new Set(distractorKeys));
+      const distractors = shuffle(uniqueDistractors).slice(0, 3);
+      if (distractors.length < 3) return null;
+
+      return {
+        type: QuestionType.MULTIPLE_CHOICE,
+        item: targetItem,
+        questionText,
+        correctAnswerText,
+        distractors,
+      };
+    },
+    [shuffle]
   );
 
   // Generate Questions Logic
   const generateQuestions = useCallback(
     (count: number): QuestionData[] => {
-      const activeItems = getFilteredItems();
-      if (activeItems.length < 4) return [];
+      const pool =
+        questionMode === "pairToKey"
+          ? getEligibleItemsForPairToKey()
+          : getFilteredItems();
+      if (pool.length < 4) return [];
+
+      const avgAccuracy = getAverageAccuracy(pool);
+      const weightFn = (item: MemoryItem) =>
+        getBelowAverageWeight(item, avgAccuracy);
 
       const generated: QuestionData[] = [];
 
-      for (let i = 0; i < count; i++) {
-        const targetItem = pickWeightedItem(activeItems);
-        const question =
-          questionMode === "aligned"
-            ? buildAlignedQuestion(targetItem, activeItems)
-            : buildRandomizedQuestion(targetItem, activeItems);
+      // Prefer a more even spread in normal mode by using weighted permutations
+      // (no immediate repeats until pool is cycled).
+      const rounds = Math.max(1, Math.ceil(count / pool.length) + 1);
+      const targetStream: MemoryItem[] = [];
+      for (let r = 0; r < rounds; r++) {
+        targetStream.push(...weightedPermutation(pool, weightFn));
+      }
 
-        if (question) {
-          generated.push(question);
+      const buildFromTarget = (targetItem: MemoryItem): QuestionData | null => {
+        if (questionMode === "aligned") {
+          return buildAlignedQuestion(targetItem, pool);
+        }
+        if (questionMode === "randomized") {
+          return buildRandomizedQuestion(targetItem, pool);
+        }
+        return buildPairToKeyQuestion(targetItem, pool);
+      };
+
+      const getCandidatesForTarget = () => {
+        if (mode !== "infinite") return pool;
+        const excluded = new Set(recentTargetIds.current);
+        const candidates = pool.filter((i) => !excluded.has(i.id));
+        return candidates.length > 0 ? candidates : pool;
+      };
+
+      for (const targetItem of targetStream) {
+        if (generated.length >= count) break;
+        const q = buildFromTarget(targetItem);
+        if (q) {
+          generated.push(q);
+          if (q.item?.id) pushRecentTarget(q.item.id, pool.length);
+        }
+      }
+
+      // Fallback: if some targets cannot build questions (e.g., not enough distractors),
+      // keep trying weighted picks until filled (bounded attempts).
+      const maxAttempts = Math.max(20, count * 8);
+      let attempts = 0;
+      while (generated.length < count && attempts < maxAttempts) {
+        attempts++;
+        const candidates = getCandidatesForTarget();
+        const picked = pickWeighted(candidates, weightFn);
+        if (!picked) break;
+        const q = buildFromTarget(picked);
+        if (q) {
+          generated.push(q);
+          if (q.item?.id) pushRecentTarget(q.item.id, pool.length);
         }
       }
 
@@ -186,10 +349,17 @@ const Exercise: React.FC = () => {
     },
     [
       getFilteredItems,
-      pickWeightedItem,
+      getEligibleItemsForPairToKey,
+      getAverageAccuracy,
+      getBelowAverageWeight,
+      weightedPermutation,
+      pickWeighted,
+      pushRecentTarget,
       questionMode,
       buildAlignedQuestion,
       buildRandomizedQuestion,
+      buildPairToKeyQuestion,
+      mode,
     ]
   );
 
@@ -214,7 +384,7 @@ const Exercise: React.FC = () => {
       }
       setSelectedAnswer(null);
     }
-  }, [gameState, currentIndex, questions]);
+  }, [gameState, currentIndex, questions, shuffle]);
 
   // Effect for Finish Sound
   useEffect(() => {
@@ -312,8 +482,10 @@ const Exercise: React.FC = () => {
   };
 
   const getFilteredCount = useCallback(() => {
+    if (questionMode === "pairToKey")
+      return getEligibleItemsForPairToKey().length;
     return getFilteredItems().length;
-  }, [getFilteredItems]);
+  }, [getFilteredItems, getEligibleItemsForPairToKey, questionMode]);
 
   // Finished Screen
   if (gameState === GameState.FINISHED) {
@@ -337,42 +509,42 @@ const Exercise: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
         <div className="w-full max-w-sm p-8 bg-white border-2 border-slate-100 rounded-3xl">
-          <div className="space-y-2 text-center mb-8">
+          <div className="mb-8 space-y-2 text-center">
             <h1 className="text-3xl font-black text-slate-800">
               {mode === "infinite" ? "Paused" : "Selesai!"}
             </h1>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-wide">
+            <p className="text-sm font-bold tracking-wide uppercase text-slate-400">
               {mode === "infinite" ? "Session suspended" : "Great work today"}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="flex flex-col items-center p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl">
+            <div className="flex flex-col items-center p-4 border-2 bg-emerald-50 border-emerald-100 rounded-2xl">
               <span className="text-3xl font-black text-emerald-500">
                 {sessionStats.correct}
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/60 mt-1">
+              <span className="mt-1 text-xs font-bold tracking-wider uppercase text-emerald-600/60">
                 Benar
               </span>
             </div>
-            <div className="flex flex-col items-center p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl">
+            <div className="flex flex-col items-center p-4 border-2 bg-rose-50 border-rose-100 rounded-2xl">
               <span className="text-3xl font-black text-rose-500">
                 {sessionStats.incorrect}
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-rose-600/60 mt-1">
+              <span className="mt-1 text-xs font-bold tracking-wider uppercase text-rose-600/60">
                 Salah
               </span>
             </div>
           </div>
 
-          <div className="space-y-3 mb-8">
-            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+          <div className="mb-8 space-y-3">
+            <div className="flex justify-between text-xs font-bold tracking-wider uppercase text-slate-400">
               <span>Akurasi</span>
               <span>{accuracy}%</span>
             </div>
-            <div className="w-full h-4 bg-slate-100 rounded-xl overflow-hidden">
+            <div className="w-full h-4 overflow-hidden bg-slate-100 rounded-xl">
               <div
-                className="h-full bg-slate-800 rounded-xl transition-all duration-1000 ease-out"
+                className="h-full transition-all duration-1000 ease-out bg-slate-800 rounded-xl"
                 style={{ width: `${accuracy}%` }}
               />
             </div>
@@ -380,7 +552,7 @@ const Exercise: React.FC = () => {
 
           <button
             onClick={handleBackToLibrary}
-            className="w-full py-4 rounded-xl bg-indigo-500 text-white font-black text-lg border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all"
+            className="w-full py-4 text-lg font-black text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl active:border-b-0 active:translate-y-1"
           >
             KEMBALI KE MENU
           </button>
@@ -392,9 +564,18 @@ const Exercise: React.FC = () => {
   const handleStart = () => {
     const count = getFilteredCount();
     if (count < 4) {
-      setSetupError("Minimal 4 item aktif diperlukan untuk mulai.");
+      setSetupError(
+        questionMode === "pairToKey"
+          ? "Minimal 4 item aktif dengan key unik diperlukan untuk mode Pair → Key."
+          : "Minimal 4 item aktif diperlukan untuk mulai."
+      );
       return;
     }
+
+    // Reset session state so generation is consistent across restarts.
+    recentTargetIds.current = [];
+    setCurrentIndex(0);
+    setSessionStats({ correct: 0, incorrect: 0 });
 
     const initialCount =
       mode === "infinite" ? 1 : settings.maxQuestionsPerSession || 10;
@@ -428,7 +609,7 @@ const Exercise: React.FC = () => {
         {/* Close Button */}
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors"
+          className="absolute p-2 transition-colors rounded-full top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-50"
         >
           <XCircle size={24} />
         </button>
@@ -437,7 +618,7 @@ const Exercise: React.FC = () => {
           <h1 className="text-2xl font-black text-slate-800 md:text-3xl">
             Mulai Latihan
           </h1>
-          <p className="font-medium text-slate-500 text-sm">
+          <p className="text-sm font-medium text-slate-500">
             Atur preferensi sesukamu.
           </p>
         </div>
@@ -446,17 +627,17 @@ const Exercise: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 text-sm font-bold border bg-slate-50 border-slate-100 rounded-xl text-slate-500">
           <div className="flex items-center gap-2">
             <span>Mode:</span>
-            <span className="text-slate-800 uppercase tracking-wide">
+            <span className="tracking-wide uppercase text-slate-800">
               {mode === "infinite" ? "Infinite" : "Normal"}
             </span>
           </div>
-          <div className="text-xs font-semibold bg-white px-2 py-1 rounded-md border border-slate-200">
+          <div className="px-2 py-1 text-xs font-semibold bg-white border rounded-md border-slate-200">
             {getFilteredCount()} Item
           </div>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-400">
+          <h2 className="text-sm font-black tracking-wider uppercase text-slate-400">
             Tipe Soal
           </h2>
 
@@ -484,7 +665,7 @@ const Exercise: React.FC = () => {
                 />
               </div>
               <div>
-                <p className="font-black text-sm">Sesuai Data</p>
+                <p className="text-sm font-black">Sesuai Data</p>
                 <p className="text-xs opacity-70">Soal: Key → Pilihan: Pair</p>
               </div>
             </button>
@@ -514,20 +695,50 @@ const Exercise: React.FC = () => {
                 />
               </div>
               <div>
-                <p className="font-black text-sm">Acak</p>
+                <p className="text-sm font-black">Acak</p>
                 <p className="text-xs opacity-70">
                   Soal dan pilihan dibuat acak
                 </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setQuestionMode("pairToKey")}
+              className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 sm:col-span-2 ${
+                questionMode === "pairToKey"
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              <div
+                className={`p-2 rounded-full ${
+                  questionMode === "pairToKey"
+                    ? "bg-indigo-100"
+                    : "bg-slate-100"
+                }`}
+              >
+                <Repeat
+                  size={18}
+                  className={
+                    questionMode === "pairToKey"
+                      ? "text-indigo-600"
+                      : "text-slate-400"
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-sm font-black">Pair → Key</p>
+                <p className="text-xs opacity-70">Soal: Pair → Pilihan: Key</p>
               </div>
             </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-400">
+          <h2 className="text-sm font-black tracking-wider uppercase text-slate-400">
             Kategori
           </h2>
-          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2">
+          <div className="flex flex-wrap gap-2 pr-2 overflow-y-auto max-h-40">
             <label
               className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-xs font-bold cursor-pointer transition-all ${
                 categoryMode === "all"
@@ -645,7 +856,7 @@ const Exercise: React.FC = () => {
 
             <button
               onClick={() => setGameState(GameState.FINISHED)}
-              className="px-3 py-2 text-xs font-bold text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
+              className="px-3 py-2 text-xs font-bold transition-colors rounded-lg text-rose-500 bg-rose-50 hover:bg-rose-100"
             >
               AKHIRI EXERCISE
             </button>
@@ -694,7 +905,7 @@ const Exercise: React.FC = () => {
             </div>
           )}
 
-          <div className="w-full leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 text-2xl md:text-3xl font-black text-center">
+          <div className="w-full text-2xl font-black leading-relaxed text-center duration-300 text-slate-700 animate-in zoom-in-95 md:text-3xl">
             "{currentQ?.questionText}"
           </div>
         </div>
