@@ -77,6 +77,46 @@ Project ini sudah menyiapkan script `gh-pages`:
 npm run deploy
 ```
 
+## PWA (Installable Web App)
+
+Project ini sudah disiapkan menjadi PWA menggunakan `vite-plugin-pwa`.
+
+### Lokasi file ikon
+
+Taruh file ikon di folder berikut:
+
+- `public/icons/`
+- `public/apple-touch-icon.png` (untuk iOS)
+
+Nama file yang dipakai oleh manifest:
+
+- `public/icons/pwa-192x192.png`
+- `public/icons/pwa-512x512.png`
+- `public/icons/pwa-192x192-maskable.png`
+- `public/icons/pwa-512x512-maskable.png`
+
+### Spesifikasi ikon (disarankan)
+
+- PNG, background solid/transparan sesuai desain
+- Ukuran wajib untuk PWA: `192x192` dan `512x512`
+- Versi `maskable` disarankan (agar aman saat di-crop oleh launcher Android)
+- iOS Home Screen: `apple-touch-icon.png` ukuran `180x180`
+
+### Cara test PWA
+
+1. Build & preview:
+
+```bash
+npm run build
+npm run preview
+```
+
+2. Buka URL preview, lalu di Chrome/Edge:
+
+- DevTools → Application → Manifest / Service Workers
+- Atau jalankan Lighthouse → kategori PWA
+- Tombol install biasanya muncul di address bar (kalau memenuhi syarat)
+
 ## Penyimpanan Data
 
 - Items disimpan di localStorage dengan key: `memora_items`
