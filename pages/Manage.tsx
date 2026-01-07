@@ -68,15 +68,15 @@ const Manage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
 
   // -- Edit State --
-  const [editTerm, setEditTerm] = useState("");
-  const [editMeanings, setEditMeanings] = useState<string[]>([]);
+  const [editKey, setEditKey] = useState("");
+  const [editPairs, setEditPairs] = useState<string[]>([]);
   const [editCategoryId, setEditCategoryId] = useState<string>("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   // -- Add State --
-  const [addTerm, setAddTerm] = useState("");
-  const [addMeanings, setAddMeanings] = useState<string[]>([""]);
+  const [addKey, setAddKey] = useState("");
+  const [addPairs, setAddPairs] = useState<string[]>([""]);
   const [addCategoryId, setAddCategoryId] = useState<string>("");
   const [addImageUrl, setAddImageUrl] = useState("");
 
@@ -95,10 +95,10 @@ const Manage: React.FC = () => {
     // 2. Filter by Search Query
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    const termMatch = item.term.toLowerCase().includes(q);
-    const meaningMatch = item.meanings.some((m) => m.toLowerCase().includes(q));
+    const termMatch = item.key.toLowerCase().includes(q);
+    const pairMatch = item.pairs.some((m) => m.toLowerCase().includes(q));
 
-    return termMatch || meaningMatch;
+    return termMatch || pairMatch;
   });
 
   // Calculate Group Stats
@@ -227,8 +227,8 @@ const Manage: React.FC = () => {
   const openEditModal = (item: MemoryItem) => {
     withSound(() => {
       setSelectedItem(item);
-      setEditTerm(item.term);
-      setEditMeanings(item.meanings.length ? [...item.meanings] : [""]);
+      setEditKey(item.key);
+      setEditPairs(item.pairs.length ? [...item.pairs] : [""]);
       setEditCategoryId(item.categoryId || "");
       setEditImageUrl(item.imageUrl || "");
       setIsConfirmingDelete(false);
@@ -241,8 +241,8 @@ const Manage: React.FC = () => {
 
     withSound(() => {
       const updates: Partial<MemoryItem> = {
-        term: editTerm,
-        meanings: editMeanings.filter((m) => m.trim() !== ""),
+        key: editKey,
+        pairs: editPairs.filter((m) => m.trim() !== ""),
         categoryId: editCategoryId || undefined,
         imageUrl: editImageUrl.trim() || undefined,
       };
@@ -297,15 +297,15 @@ const Manage: React.FC = () => {
     setIsConfirmingDelete(false);
   };
 
-  // Edit Meanings Handlers
-  const handleEditMeaningChange = (index: number, val: string) => {
-    const arr = [...editMeanings];
+  // Edit Pairs Handlers
+  const handleEditPairChange = (index: number, val: string) => {
+    const arr = [...editPairs];
     arr[index] = val;
-    setEditMeanings(arr);
+    setEditPairs(arr);
   };
-  const addEditMeaning = () => setEditMeanings([...editMeanings, ""]);
-  const removeEditMeaning = (idx: number) =>
-    setEditMeanings(editMeanings.filter((_, i) => i !== idx));
+  const addEditPair = () => setEditPairs([...editPairs, ""]);
+  const removeEditPair = (idx: number) =>
+    setEditPairs(editPairs.filter((_, i) => i !== idx));
 
   // --- Add Functions ---
 
@@ -359,36 +359,36 @@ const Manage: React.FC = () => {
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addTerm.trim()) return;
+    if (!addKey.trim()) return;
 
     withSound(() => {
-      const filteredMeanings = addMeanings.filter((m) => m.trim() !== "");
-      if (filteredMeanings.length === 0) return;
+      const filteredPairs = addPairs.filter((m) => m.trim() !== "");
+      if (filteredPairs.length === 0) return;
       addItem({
-        term: addTerm,
-        meanings: filteredMeanings,
+        key: addKey,
+        pairs: filteredPairs,
         isActive: true,
         categoryId: addCategoryId || undefined,
         imageUrl: addImageUrl.trim() || undefined,
       });
 
       // Reset Add Form
-      setAddTerm("");
-      setAddMeanings([""]);
+      setAddKey("");
+      setAddPairs([""]);
       setAddCategoryId("");
       setAddImageUrl("");
       setIsAddModalOpen(false);
     });
   };
 
-  const handleAddMeaningChange = (index: number, val: string) => {
-    const arr = [...addMeanings];
+  const handleAddPairChange = (index: number, val: string) => {
+    const arr = [...addPairs];
     arr[index] = val;
-    setAddMeanings(arr);
+    setAddPairs(arr);
   };
-  const appendAddMeaning = () => setAddMeanings([...addMeanings, ""]);
-  const removeAddMeaning = (idx: number) =>
-    setAddMeanings(addMeanings.filter((_, i) => i !== idx));
+  const appendAddPair = () => setAddPairs([...addPairs, ""]);
+  const removeAddPair = (idx: number) =>
+    setAddPairs(addPairs.filter((_, i) => i !== idx));
 
   return (
     <div className="max-w-6xl min-h-screen px-6 pt-20 pb-24 mx-auto sm:pb-10">
@@ -585,10 +585,10 @@ const Manage: React.FC = () => {
                   </div>
 
                   <h3 className="mb-1 text-lg font-bold text-slate-700 line-clamp-1">
-                    {item.term}
+                    {item.key}
                   </h3>
                   <p className="text-sm text-slate-500 font-medium line-clamp-2 min-h-[2.5rem]">
-                    {item.meanings.join(", ")}
+                    {item.pairs.join(", ")}
                   </p>
 
                   {item.categoryId && (
@@ -683,34 +683,34 @@ const Manage: React.FC = () => {
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
                 <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
-                  Term
+                  Key
                 </label>
                 <input
                   type="text"
-                  value={editTerm}
-                  onChange={(e) => setEditTerm(e.target.value)}
+                  value={editKey}
+                  onChange={(e) => setEditKey(e.target.value)}
                   className="w-full px-4 py-3 font-medium bg-white border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
                 />
               </div>
 
               <div>
                 <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
-                  Meanings
+                  Pairs
                 </label>
                 <div className="space-y-2">
-                  {editMeanings.map((m, idx) => (
+                  {editPairs.map((m, idx) => (
                     <div key={idx} className="flex gap-2">
                       <input
                         type="text"
                         value={m}
                         onChange={(e) =>
-                          handleEditMeaningChange(idx, e.target.value)
+                          handleEditPairChange(idx, e.target.value)
                         }
                         className="flex-1 px-4 py-2 font-medium border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
                       />
                       <button
                         type="button"
-                        onClick={() => removeEditMeaning(idx)}
+                        onClick={() => removeEditPair(idx)}
                         className="px-2 text-slate-300 hover:text-rose-500"
                       >
                         <Trash2 size={20} />
@@ -719,10 +719,10 @@ const Manage: React.FC = () => {
                   ))}
                   <button
                     type="button"
-                    onClick={addEditMeaning}
+                    onClick={addEditPair}
                     className="mt-2 text-sm font-bold tracking-wide text-indigo-500 uppercase"
                   >
-                    + Add meaning
+                    + Add pair
                   </button>
                 </div>
               </div>
@@ -828,12 +828,12 @@ const Manage: React.FC = () => {
           <div className="space-y-4">
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                Keyword / Term
+                Keyword / Key
               </label>
               <input
                 type="text"
-                value={addTerm}
-                onChange={(e) => setAddTerm(e.target.value)}
+                value={addKey}
+                onChange={(e) => setAddKey(e.target.value)}
                 placeholder="e.g., Apple"
                 className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                 required
@@ -842,25 +842,23 @@ const Manage: React.FC = () => {
 
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                Meanings
+                Pairs
               </label>
               <div className="space-y-3">
-                {addMeanings.map((meaning, idx) => (
+                {addPairs.map((meaning, idx) => (
                   <div key={idx} className="flex gap-2">
                     <input
                       type="text"
                       value={meaning}
-                      onChange={(e) =>
-                        handleAddMeaningChange(idx, e.target.value)
-                      }
+                      onChange={(e) => handleAddPairChange(idx, e.target.value)}
                       placeholder="Enter meaning..."
                       className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                       required={idx === 0}
                     />
-                    {addMeanings.length > 1 && (
+                    {addPairs.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => removeAddMeaning(idx)}
+                        onClick={() => removeAddPair(idx)}
                         className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
                       >
                         <X size={20} />
@@ -870,7 +868,7 @@ const Manage: React.FC = () => {
                 ))}
                 <button
                   type="button"
-                  onClick={appendAddMeaning}
+                  onClick={appendAddPair}
                   className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
                 >
                   <Plus size={18} />

@@ -36,16 +36,16 @@ const DEFAULT_SETTINGS: AppSettings = {
 const SEED_DATA: MemoryItem[] = [
   {
     id: "seed-1",
-    term: "Cat",
-    meanings: ["Kucing", "Hewan berkaki empat"],
+    key: "Cat",
+    pairs: ["Kucing", "Hewan berkaki empat"],
     isActive: true,
     stats: { correct: 0, incorrect: 0 },
     createdAt: Date.now(),
   },
   {
     id: "seed-2",
-    term: "Photosynthesis",
-    meanings: [
+    key: "Photosynthesis",
+    pairs: [
       "The process by which green plants use sunlight to synthesize foods.",
     ],
     isActive: true,
@@ -54,26 +54,24 @@ const SEED_DATA: MemoryItem[] = [
   },
   {
     id: "seed-3",
-    term: "Hello",
-    meanings: ["Halo", "Hai", "Sapaan"],
+    key: "Hello",
+    pairs: ["Halo", "Hai", "Sapaan"],
     isActive: true,
     stats: { correct: 0, incorrect: 0 },
     createdAt: Date.now(),
   },
   {
     id: "seed-4",
-    term: "Run",
-    meanings: ["Lari", "Berlari"],
+    key: "Run",
+    pairs: ["Lari", "Berlari"],
     isActive: true,
     stats: { correct: 0, incorrect: 0 },
     createdAt: Date.now(),
   },
   {
     id: "seed-5",
-    term: "Gravity",
-    meanings: [
-      "The force that attracts a body toward the center of the earth.",
-    ],
+    key: "Gravity",
+    pairs: ["The force that attracts a body toward the center of the earth."],
     isActive: true,
     stats: { correct: 0, incorrect: 0 },
     createdAt: Date.now(),
@@ -99,9 +97,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
         let parsed: any[] = JSON.parse(storedItems);
         // Migration logic for legacy data
         const migrated = parsed.map((item) => {
-          const meanings = item.meanings || [];
-          if (item.description && meanings.length === 0) {
-            meanings.push(item.description);
+          const pairs = item.pairs || item.meanings || [];
+          if (item.description && pairs.length === 0) {
+            pairs.push(item.description);
           }
 
           // Clean up old fields
@@ -109,8 +107,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
           const { type, description, ...rest } = item;
           return {
             ...rest,
-            meanings,
-            term: item.term || "Unknown",
+            pairs: pairs,
+            key: item.key || item.term || "Unknown",
           };
         });
 
@@ -212,14 +210,28 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
-  const importData = (newItems: MemoryItem[], newCategories: Category[]) => {
-    // Merge strategies could vary. Here we append.
-    // For categories, if ID exists, we might skip or overwrite?
-    // Let's assume we just append missing ones or merge carefully.
-    // Actually, simple append for now, relying on UUIDs to be likely unique if generated elsewhere,
-    // or if the user is importing from a different export.
-    // If IDs collide, we probably want to keep the existing one or overwrite?
-    // Let's just spread them in.
+  const importData = (newItems: any[], newCategories: Category[]) => {
+    // Migration logic for imported data
+    const migratedItems: MemoryItem[] = newItems.map((item) => {
+      // Handle legacy fields
+      const pairs = item.pairs || item.meanings || [];
+      if (item.description && pairs.length === 0) {
+        pairs.push(item.description);
+      }
+
+      // We reconstruct the item to conform to current MemoryItem interface
+      // while dropping old fields like 'term', 'meanings', 'type', 'description'
+      return {
+        id: item.id || generateUUID(),
+        key: item.key || item.term || "Unknown",
+        pairs: pairs,
+        imageUrl: item.imageUrl,
+        isActive: item.isActive ?? true,
+        categoryId: item.categoryId,
+        stats: item.stats || { correct: 0, incorrect: 0 },
+        createdAt: item.createdAt || Date.now(),
+      };
+    });
 
     setCategories((prev) => {
       const combined = [...prev, ...newCategories];
@@ -231,7 +243,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
     });
 
     setItems((prev) => {
-      const combined = [...prev, ...newItems];
+      const combined = [...prev, ...migratedItems];
       // remove duplicates by ID
       const unique = Array.from(
         new Map(combined.map((i) => [i.id, i])).values()

@@ -10,8 +10,8 @@ export interface Category {
 
 export interface MemoryItem {
   id: string;
-  term: string; // The main word or the term being defined
-  meanings: string[]; // List of meanings/definitions
+  key: string; // The main word or the term being defined
+  pairs: string[]; // List of meanings/definitions
   imageUrl?: string; // Optional image URL
   isActive: boolean;
   categoryId?: string;

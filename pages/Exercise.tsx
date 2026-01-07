@@ -100,12 +100,12 @@ const Exercise: React.FC = () => {
 
   const buildAlignedQuestion = useCallback(
     (targetItem: MemoryItem, pool: MemoryItem[]): QuestionData | null => {
-      const correct = targetItem.meanings[0];
+      const correct = targetItem.pairs[0];
       if (!correct) return null;
 
       const potentialDistractors = pool
         .filter((i) => i.id !== targetItem.id)
-        .flatMap((i) => i.meanings)
+        .flatMap((i) => i.pairs)
         .filter((t) => t && t !== correct);
 
       const uniqueDistractors = Array.from(new Set(potentialDistractors));
@@ -116,7 +116,7 @@ const Exercise: React.FC = () => {
       return {
         type: QuestionType.MULTIPLE_CHOICE,
         item: targetItem,
-        questionText: targetItem.term,
+        questionText: targetItem.key,
         correctAnswerText: correct,
         distractors,
       };
@@ -127,8 +127,8 @@ const Exercise: React.FC = () => {
   const buildRandomizedQuestion = useCallback(
     (targetItem: MemoryItem, pool: MemoryItem[]): QuestionData | null => {
       const fields = [
-        { key: "term", text: targetItem.term },
-        ...targetItem.meanings.map((m) => ({ key: "meaning", text: m })),
+        { key: "key", text: targetItem.key },
+        ...targetItem.pairs.map((m) => ({ key: "pair", text: m })),
       ].filter((f): f is { key: string; text: string } => Boolean(f?.text));
 
       const uniqueTexts = Array.from(new Set(fields.map((f) => f.text)));
@@ -136,12 +136,12 @@ const Exercise: React.FC = () => {
 
       const questionText = shuffle(uniqueTexts)[0];
       const remaining = uniqueTexts.filter((t) => t !== questionText);
-      const correctAnswerText = remaining[0] || targetItem.term;
+      const correctAnswerText = remaining[0] || targetItem.key;
 
       const distractorPool = pool
         .filter((i) => i.id !== targetItem.id)
         .flatMap((i) => {
-          const candidates = [i.term, ...i.meanings];
+          const candidates = [i.key, ...i.pairs];
           return candidates;
         })
         .filter((t) => t && t !== correctAnswerText && t !== questionText);
@@ -391,7 +391,7 @@ const Exercise: React.FC = () => {
 
           <button
             onClick={handleBackToLibrary}
-            className="w-full py-4 text-base font-bold text-white uppercase tracking-widest bg-slate-800 rounded-xl border-2 border-slate-800 border-b-[6px] border-b-slate-950 transition-transform active:translate-y-1 active:border-b-2"
+            className="w-full py-4 text-base font-bold text-white uppercase tracking-widest bg-slate-800 rounded-full border-2 border-slate-800 border-b-[6px] border-b-slate-950 transition-transform active:translate-y-1 active:border-b-2"
           >
             Back to Library
           </button>
@@ -434,93 +434,113 @@ const Exercise: React.FC = () => {
   };
 
   const startScreen = (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-white">
-      <div className="w-full max-w-3xl p-8 space-y-6 bg-white border-2 shadow-sm border-slate-100 rounded-3xl">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50 md:p-6">
+      <div className="relative w-full max-w-2xl p-6 space-y-6 bg-white border-2 shadow-sm border-slate-100 rounded-3xl md:p-8">
+        {/* Close Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors"
+        >
+          <XCircle size={24} />
+        </button>
+
         <div className="space-y-2 text-center">
-          <p className="text-xs font-black tracking-[0.2em] text-slate-300 uppercase">
-            Exercise
-          </p>
-          <h1 className="text-3xl font-black text-slate-800">Siap berlatih?</h1>
-          <p className="font-medium text-slate-500">
-            Atur tipe soal dan pilih kategori favorit sebelum mulai kuis.
+          <h1 className="text-2xl font-black text-slate-800 md:text-3xl">
+            Mulai Latihan
+          </h1>
+          <p className="font-medium text-slate-500 text-sm">
+            Atur preferensi sesukamu.
           </p>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 text-sm font-bold border bg-slate-50 border-slate-100 rounded-2xl text-slate-500">
-          <span>Mode</span>
-          <span className="text-slate-800">
-            {mode === "infinite" ? "Infinite" : "Normal"}
-          </span>
+        {/* Mode & Stats Compact View */}
+        <div className="flex items-center justify-between px-4 py-3 text-sm font-bold border bg-slate-50 border-slate-100 rounded-xl text-slate-500">
+          <div className="flex items-center gap-2">
+            <span>Mode:</span>
+            <span className="text-slate-800 uppercase tracking-wide">
+              {mode === "infinite" ? "Infinite" : "Normal"}
+            </span>
+          </div>
+          <div className="text-xs font-semibold bg-white px-2 py-1 rounded-md border border-slate-200">
+            {getFilteredCount()} Item
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-            Preferensi Soal
-          </p>
-          <h2 className="text-xl font-black text-slate-800">
-            Pilih cara soal ditampilkan
+        <div className="space-y-4">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-400">
+            Tipe Soal
           </h2>
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <button
-            onClick={() => setQuestionMode("aligned")}
-            className={`p-4 rounded-2xl border-2 text-left transition-all ${
-              questionMode === "aligned"
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle
-                size={20}
-                className={
-                  questionMode === "aligned"
-                    ? "text-indigo-600"
-                    : "text-slate-300"
-                }
-              />
-              <p className="font-black">Sesuai Data</p>
-            </div>
-            <p className="text-sm text-slate-500">
-              Soal dari term, jawaban diambil dari meaning / description sesuai
-              data asli.
-            </p>
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={() => setQuestionMode("aligned")}
+              className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
+                questionMode === "aligned"
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              <div
+                className={`p-2 rounded-full ${
+                  questionMode === "aligned" ? "bg-indigo-100" : "bg-slate-100"
+                }`}
+              >
+                <CheckCircle
+                  size={18}
+                  className={
+                    questionMode === "aligned"
+                      ? "text-indigo-600"
+                      : "text-slate-400"
+                  }
+                />
+              </div>
+              <div>
+                <p className="font-black text-sm">Sesuai Data</p>
+                <p className="text-xs opacity-70">Soal: Key → Pilihan: Pair</p>
+              </div>
+            </button>
 
-          <button
-            onClick={() => setQuestionMode("randomized")}
-            className={`p-4 rounded-2xl border-2 text-left transition-all ${
-              questionMode === "randomized"
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <RefreshCw
-                size={20}
-                className={
+            <button
+              onClick={() => setQuestionMode("randomized")}
+              className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
+                questionMode === "randomized"
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              <div
+                className={`p-2 rounded-full ${
                   questionMode === "randomized"
-                    ? "text-indigo-600"
-                    : "text-slate-300"
-                }
-              />
-              <p className="font-black">Acak Total</p>
-            </div>
-            <p className="text-sm text-slate-500">
-              Soal & opsi diacak dari term, meaning, atau definition. Hanya satu
-              jawaban benar.
-            </p>
-          </button>
+                    ? "bg-indigo-100"
+                    : "bg-slate-100"
+                }`}
+              >
+                <RefreshCw
+                  size={18}
+                  className={
+                    questionMode === "randomized"
+                      ? "text-indigo-600"
+                      : "text-slate-400"
+                  }
+                />
+              </div>
+              <div>
+                <p className="font-black text-sm">Acak</p>
+                <p className="text-xs opacity-70">
+                  Soal dan pilihan dibuat acak
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-            Pilih Kategori
-          </p>
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-4">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-400">
+            Kategori
+          </h2>
+          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2">
             <label
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-bold cursor-pointer transition-all ${
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-xs font-bold cursor-pointer transition-all ${
                 categoryMode === "all"
                   ? "border-indigo-500 bg-indigo-50 text-indigo-700"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
@@ -530,7 +550,6 @@ const Exercise: React.FC = () => {
                 type="checkbox"
                 checked={categoryMode === "all"}
                 onChange={() => {
-                  // When turning off "All", switch to custom with NOTHING selected
                   if (categoryMode === "all") {
                     setCategoryMode("custom");
                     setSelectedCategories([]);
@@ -539,23 +558,33 @@ const Exercise: React.FC = () => {
                     setSelectedCategories([]);
                   }
                 }}
-                className="accent-indigo-500"
+                className="hidden"
               />
+              <div
+                className={`w-4 h-4 rounded-md border flex items-center justify-center ${
+                  categoryMode === "all"
+                    ? "bg-indigo-500 border-indigo-500"
+                    : "border-slate-300 bg-white"
+                }`}
+              >
+                {categoryMode === "all" && (
+                  <CheckCircle size={12} className="text-white" />
+                )}
+              </div>
               <span>All</span>
             </label>
 
             {categories.length === 0 && (
-              <span className="text-sm text-slate-500">
-                Belum ada kategori. Semua item akan dipakai.
-              </span>
+              <span className="text-xs text-slate-400">(Kosong)</span>
             )}
+
             {categories.map((cat) => {
               const active =
                 categoryMode === "all" || selectedCategories.includes(cat.id);
               return (
                 <label
                   key={cat.id}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-bold cursor-pointer transition-all ${
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-xs font-bold cursor-pointer transition-all select-none ${
                     active
                       ? "border-indigo-500 bg-indigo-50 text-indigo-700"
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
@@ -565,43 +594,38 @@ const Exercise: React.FC = () => {
                     type="checkbox"
                     checked={active}
                     onChange={() => toggleCategory(cat.id)}
-                    className="accent-indigo-500"
+                    className="hidden"
                   />
+                  <div
+                    className={`w-4 h-4 rounded-md border flex items-center justify-center ${
+                      active
+                        ? "bg-indigo-500 border-indigo-500"
+                        : "border-slate-300 bg-white"
+                    }`}
+                  >
+                    {active && <CheckCircle size={12} className="text-white" />}
+                  </div>
                   <span>{cat.name}</span>
                 </label>
               );
             })}
           </div>
-          <p className="text-xs text-slate-400">
-            Pilih All untuk memakai semua kategori aktif.
-          </p>
         </div>
 
         {setupError && (
-          <div className="p-3 text-sm font-semibold border-2 rounded-xl border-rose-200 bg-rose-50 text-rose-700">
+          <div className="p-3 text-xs font-bold text-center border-2 rounded-xl border-rose-200 bg-rose-50 text-rose-600 animate-pulse">
             {setupError}
           </div>
         )}
 
-        {getFilteredCount() < 4 && (
-          <div className="p-4 text-sm font-semibold border-2 rounded-xl border-amber-200 bg-amber-50 text-amber-700">
-            Butuh minimal 4 item aktif sesuai filter & kategori untuk memulai.
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-bold text-slate-500">
-            Item siap dimainkan:{" "}
-            <span className="text-slate-800">{getFilteredCount()}</span>
-          </div>
-          <button
-            onClick={handleStart}
-            className="px-5 py-3 rounded-xl bg-emerald-500 text-white font-black border-2 border-emerald-500 border-b-[6px] border-b-emerald-700 transition-transform active:translate-y-1 active:border-b-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={getFilteredCount() < 4}
-          >
-            Start
-          </button>
-        </div>
+        {/* Start Button */}
+        <button
+          onClick={handleStart}
+          disabled={getFilteredCount() < 4}
+          className="w-full py-4 rounded-xl bg-emerald-500 text-white font-black text-lg border-2 border-emerald-500 border-b-[6px] border-b-emerald-700 transition-all active:translate-y-1 active:border-b-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-400"
+        >
+          START
+        </button>
       </div>
     </div>
   );
@@ -786,7 +810,7 @@ const Exercise: React.FC = () => {
                     handleNextQuestion();
                   }, 80);
                 }}
-                className={`w-full py-3 rounded-xl font-bold text-base text-white border-2 border-b-[6px] transition-transform active:translate-y-1 active:border-b-2 flex items-center justify-center space-x-2 uppercase tracking-wide ${
+                className={`w-full py-3 rounded-full font-bold text-base text-white border-2 border-b-[6px] transition-transform active:translate-y-1 active:border-b-2 flex items-center justify-center space-x-2 uppercase tracking-wide ${
                   isCorrect
                     ? "bg-emerald-500 border-emerald-500 border-b-emerald-700"
                     : "bg-rose-500 border-rose-500 border-b-rose-700"

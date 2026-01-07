@@ -14,8 +14,9 @@ const Home: React.FC = () => {
 
   // Form State
   // Form State
-  const [term, setTerm] = useState("");
-  const [meanings, setMeanings] = useState<string[]>([""]);
+  // Form State
+  const [key, setKey] = useState("");
+  const [pairs, setPairs] = useState<string[]>([""]);
   const [addCategoryId, setAddCategoryId] = useState<string>("");
 
   const categoryOptions = categories.map((c) => ({ id: c.id, label: c.name }));
@@ -37,41 +38,41 @@ const Home: React.FC = () => {
     withSound(() => setIsModalOpen(true));
   };
 
-  const handleAddMeaning = () => {
-    setMeanings([...meanings, ""]);
+  const handleAddPair = () => {
+    setPairs([...pairs, ""]);
   };
 
-  const handleRemoveMeaning = (index: number) => {
-    const newMeanings = [...meanings];
-    newMeanings.splice(index, 1);
-    setMeanings(newMeanings);
+  const handleRemovePair = (index: number) => {
+    const newPairs = [...pairs];
+    newPairs.splice(index, 1);
+    setPairs(newPairs);
   };
 
-  const handleMeaningChange = (index: number, value: string) => {
-    const newMeanings = [...meanings];
-    newMeanings[index] = value;
-    setMeanings(newMeanings);
+  const handlePairChange = (index: number, value: string) => {
+    const newPairs = [...pairs];
+    newPairs[index] = value;
+    setPairs(newPairs);
   };
 
   const resetForm = () => {
-    setTerm("");
-    setMeanings([""]);
+    setKey("");
+    setPairs([""]);
     setAddCategoryId("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!term.trim()) return;
+    if (!key.trim()) return;
 
     // Direct sound play here as we are not navigating away immediately,
     // but waiting for state update is fine.
     withSound(() => {
-      const filteredMeanings = meanings.filter((m) => m.trim() !== "");
-      if (filteredMeanings.length === 0) return;
+      const filteredPairs = pairs.filter((m) => m.trim() !== "");
+      if (filteredPairs.length === 0) return;
 
       addItem({
-        term: term,
-        meanings: filteredMeanings,
+        key: key,
+        pairs: filteredPairs,
         isActive: true,
         categoryId: addCategoryId || undefined,
       });
@@ -166,12 +167,12 @@ const Home: React.FC = () => {
 
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                Keyword / Term
+                Keyword / Key
               </label>
               <input
                 type="text"
-                value={term}
-                onChange={(e) => setTerm(e.target.value)}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
                 placeholder="e.g., Apple"
                 className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                 required
@@ -180,23 +181,23 @@ const Home: React.FC = () => {
 
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                Meanings / Translations
+                Pairs / Translations
               </label>
               <div className="space-y-3">
-                {meanings.map((meaning, idx) => (
+                {pairs.map((pair, idx) => (
                   <div key={idx} className="flex gap-2">
                     <input
                       type="text"
-                      value={meaning}
-                      onChange={(e) => handleMeaningChange(idx, e.target.value)}
-                      placeholder="Enter meaning..."
+                      value={pair}
+                      onChange={(e) => handlePairChange(idx, e.target.value)}
+                      placeholder="Enter pair..."
                       className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                       required={idx === 0}
                     />
-                    {meanings.length > 1 && (
+                    {pairs.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => handleRemoveMeaning(idx)}
+                        onClick={() => handleRemovePair(idx)}
                         className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
                       >
                         <X size={20} />
@@ -206,7 +207,7 @@ const Home: React.FC = () => {
                 ))}
                 <button
                   type="button"
-                  onClick={handleAddMeaning}
+                  onClick={handleAddPair}
                   className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
                 >
                   <Plus size={18} />
