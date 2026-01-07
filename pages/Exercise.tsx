@@ -335,65 +335,54 @@ const Exercise: React.FC = () => {
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50">
-        <div className="w-full max-w-sm mx-auto space-y-6">
-          <div className="space-y-2 text-center">
-            <div className="inline-flex items-center justify-center p-3 mb-3 text-indigo-500 bg-white border-2 rounded-full border-slate-100">
-              {mode === "infinite" ? (
-                <Infinity size={40} />
-              ) : (
-                <CheckCircle size={40} />
-              )}
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-800">
-              {mode === "infinite" ? "Session Paused" : "All Done!"}
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
+        <div className="w-full max-w-sm p-8 bg-white border-2 border-slate-100 rounded-3xl">
+          <div className="space-y-2 text-center mb-8">
+            <h1 className="text-3xl font-black text-slate-800">
+              {mode === "infinite" ? "Paused" : "Selesai!"}
             </h1>
-            <p className="text-sm font-medium text-slate-500">
-              {mode === "infinite"
-                ? "Great mental workout."
-                : "You've completed your set."}
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-wide">
+              {mode === "infinite" ? "Session suspended" : "Great work today"}
             </p>
           </div>
 
-          <div className="p-5 space-y-5 bg-white border-2 rounded-2xl border-slate-100">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 text-center border-2 rounded-xl bg-emerald-50 border-emerald-100">
-                <span className="block text-2xl font-black text-emerald-500">
-                  {sessionStats.correct}
-                </span>
-                <span className="text-xs font-bold tracking-wider uppercase text-emerald-600/70">
-                  Correct
-                </span>
-              </div>
-              <div className="p-3 text-center border-2 rounded-xl bg-rose-50 border-rose-100">
-                <span className="block text-2xl font-black text-rose-500">
-                  {sessionStats.incorrect}
-                </span>
-                <span className="text-xs font-bold tracking-wider uppercase text-rose-600/70">
-                  Incorrect
-                </span>
-              </div>
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="flex flex-col items-center p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl">
+              <span className="text-3xl font-black text-emerald-500">
+                {sessionStats.correct}
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/60 mt-1">
+                Benar
+              </span>
             </div>
+            <div className="flex flex-col items-center p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl">
+              <span className="text-3xl font-black text-rose-500">
+                {sessionStats.incorrect}
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-600/60 mt-1">
+                Salah
+              </span>
+            </div>
+          </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold tracking-wider uppercase text-slate-400">
-                <span>Accuracy</span>
-                <span>{accuracy}%</span>
-              </div>
-              <div className="w-full h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full bg-indigo-500 rounded-full"
-                  style={{ width: `${accuracy}%` }}
-                />
-              </div>
+          <div className="space-y-3 mb-8">
+            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+              <span>Akurasi</span>
+              <span>{accuracy}%</span>
+            </div>
+            <div className="w-full h-4 bg-slate-100 rounded-xl overflow-hidden">
+              <div
+                className="h-full bg-slate-800 rounded-xl transition-all duration-1000 ease-out"
+                style={{ width: `${accuracy}%` }}
+              />
             </div>
           </div>
 
           <button
             onClick={handleBackToLibrary}
-            className="w-full py-4 text-base font-bold text-white uppercase tracking-widest bg-slate-800 rounded-full border-2 border-slate-800 border-b-[6px] border-b-slate-950 transition-transform active:translate-y-1 active:border-b-2"
+            className="w-full py-4 rounded-xl bg-indigo-500 text-white font-black text-lg border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all"
           >
-            Back to Library
+            KEMBALI KE MENU
           </button>
         </div>
       </div>
