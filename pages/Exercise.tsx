@@ -1,20 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
-import {
-  MemoryItem,
-  QuestionData,
-  ItemType,
-  QuestionType,
-  MatchingPair,
-} from "../types";
-import MatchingQuestion from "../components/MatchingQuestion";
+import { MemoryItem, QuestionData, QuestionType } from "../types";
 import {
   ArrowLeft,
   CheckCircle,
   XCircle,
   RefreshCw,
-  Home,
   ArrowRight,
   Infinity,
 } from "lucide-react";
@@ -35,12 +27,10 @@ enum GameState {
 const Exercise: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items, settings, updateStats } = useStore();
+  const { items, settings, updateStats, categories } = useStore();
 
   const mode = (location.state?.mode as "normal" | "infinite") || "normal";
-  const filter =
-    (location.state?.filter as "MIX" | "WORD" | "DEFINITION" | "CATEGORY") ||
-    "MIX";
+  const filter = (location.state?.filter as "MIX" | "CATEGORY") || "MIX";
   const categoryId = location.state?.categoryId as string | undefined;
 
   const [gameState, setGameState] = useState<GameState>(GameState.PREPARING);
@@ -53,154 +43,162 @@ const Exercise: React.FC = () => {
     correct: 0,
     incorrect: 0,
   });
+  const [questionMode, setQuestionMode] = useState<"aligned" | "randomized">(
+    "aligned"
+  );
+  // Starting state: Check checkboxes unselected as requested, user must pick.
+  // Using 'custom' with empty selection achieves "all uncheck".
+  const [categoryMode, setCategoryMode] = useState<"all" | "custom">("custom");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // Shuffle array utility
   const shuffle = <T,>(array: T[]): T[] => {
     return [...array].sort(() => Math.random() - 0.5);
   };
 
+  const getDifficultyWeight = (item: MemoryItem) => {
+    const total = item.stats.correct + item.stats.incorrect;
+    const accuracy = total === 0 ? 0 : item.stats.correct / total;
+    return 0.4 + (1 - accuracy); // higher weight for items with lower accuracy
+  };
+
+  const getFilteredItems = useCallback(() => {
+    let activeItems = items.filter((i) => i.isActive);
+
+    // Category filter behavior:
+    // - categoryMode === "all": include everything (including uncategorized)
+    // - categoryMode === "custom": include only selected categories
+    //   (if none selected, include none)
+    if (categoryMode === "custom") {
+      if (selectedCategories.length === 0) return [];
+      activeItems = activeItems.filter((i) =>
+        selectedCategories.includes(i.categoryId || "")
+      );
+    } else if (filter === "CATEGORY" && categoryId) {
+      // Backward-compat: if user came from a category shortcut
+      activeItems = activeItems.filter((i) => i.categoryId === categoryId);
+    }
+
+    return activeItems;
+  }, [items, filter, categoryId, selectedCategories, categoryMode]);
+
+  const pickWeightedItem = useCallback((pool: MemoryItem[]): MemoryItem => {
+    const shuffledPool = shuffle(pool);
+    const weights = shuffledPool.map((item) => getDifficultyWeight(item));
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    const r = Math.random() * totalWeight;
+    let cumulative = 0;
+
+    for (let i = 0; i < shuffledPool.length; i++) {
+      cumulative += weights[i];
+      if (r <= cumulative) return shuffledPool[i];
+    }
+
+    return shuffledPool[0];
+  }, []);
+
+  const buildAlignedQuestion = useCallback(
+    (targetItem: MemoryItem, pool: MemoryItem[]): QuestionData | null => {
+      const correct = targetItem.meanings[0];
+      if (!correct) return null;
+
+      const potentialDistractors = pool
+        .filter((i) => i.id !== targetItem.id)
+        .flatMap((i) => i.meanings)
+        .filter((t) => t && t !== correct);
+
+      const uniqueDistractors = Array.from(new Set(potentialDistractors));
+      const distractors = shuffle(uniqueDistractors).slice(0, 3);
+
+      if (distractors.length < 3) return null;
+
+      return {
+        type: QuestionType.MULTIPLE_CHOICE,
+        item: targetItem,
+        questionText: targetItem.term,
+        correctAnswerText: correct,
+        distractors,
+      };
+    },
+    []
+  );
+
+  const buildRandomizedQuestion = useCallback(
+    (targetItem: MemoryItem, pool: MemoryItem[]): QuestionData | null => {
+      const fields = [
+        { key: "term", text: targetItem.term },
+        ...targetItem.meanings.map((m) => ({ key: "meaning", text: m })),
+      ].filter((f): f is { key: string; text: string } => Boolean(f?.text));
+
+      const uniqueTexts = Array.from(new Set(fields.map((f) => f.text)));
+      if (uniqueTexts.length === 0) return null;
+
+      const questionText = shuffle(uniqueTexts)[0];
+      const remaining = uniqueTexts.filter((t) => t !== questionText);
+      const correctAnswerText = remaining[0] || targetItem.term;
+
+      const distractorPool = pool
+        .filter((i) => i.id !== targetItem.id)
+        .flatMap((i) => {
+          const candidates = [i.term, ...i.meanings];
+          return candidates;
+        })
+        .filter((t) => t && t !== correctAnswerText && t !== questionText);
+
+      const uniqueDistractors = Array.from(new Set(distractorPool));
+      const distractors = shuffle(uniqueDistractors).slice(0, 3);
+
+      if (distractors.length < 3) return null;
+
+      return {
+        type: QuestionType.MULTIPLE_CHOICE,
+        item: targetItem,
+        questionText,
+        correctAnswerText,
+        distractors,
+      };
+    },
+    []
+  );
+
   // Generate Questions Logic
   const generateQuestions = useCallback(
-    (count: number, startIndex: number = 0): QuestionData[] => {
-      // 1. Filter by active
-      let activeItems: MemoryItem[] = items.filter(
-        (i: MemoryItem) => i.isActive
-      );
-
-      // 2. Filter by Type choice
-      if (filter === "WORD") {
-        activeItems = activeItems.filter((i) => i.type === ItemType.WORD);
-      } else if (filter === "DEFINITION") {
-        activeItems = activeItems.filter((i) => i.type === ItemType.DEFINITION);
-      } else if (filter === "CATEGORY" && categoryId) {
-        activeItems = activeItems.filter((i) => i.categoryId === categoryId);
-      }
-
-      // Check if we have enough items AFTER filtering
+    (count: number): QuestionData[] => {
+      const activeItems = getFilteredItems();
       if (activeItems.length < 4) return [];
 
       const generated: QuestionData[] = [];
 
-      // Separate words for matching mode
-      const wordItems = activeItems.filter((i) => i.type === ItemType.WORD);
-
-      // Shuffle active items for normal questions to ensure variety
-      const shuffledActive = shuffle(activeItems);
-      let normalIndex = 0;
-
       for (let i = 0; i < count; i++) {
-        const globalIndex = startIndex + i + 1;
-        const isMatchingRound = globalIndex % 4 === 0;
+        const targetItem = pickWeightedItem(activeItems);
+        const question =
+          questionMode === "aligned"
+            ? buildAlignedQuestion(targetItem, activeItems)
+            : buildRandomizedQuestion(targetItem, activeItems);
 
-        // Matching Mode Logic
-        if (
-          isMatchingRound &&
-          filter !== "DEFINITION" &&
-          wordItems.length >= 4
-        ) {
-          const selected = shuffle(wordItems).slice(0, 4);
-          const pairs: MatchingPair[] = selected.map((item) => {
-            const showTermLeft = Math.random() > 0.5;
-            const hasMeanings = item.meanings && item.meanings.length > 0;
-            const meaning = hasMeanings ? item.meanings[0] : "???";
-
-            return {
-              id: item.id,
-              leftContent: showTermLeft ? item.term : meaning,
-              rightContent: showTermLeft ? meaning : item.term,
-              item: item,
-            };
-          });
-
-          generated.push({
-            type: QuestionType.MATCHING,
-            pairs: pairs,
-          });
-          continue;
+        if (question) {
+          generated.push(question);
         }
-
-        // Normal Question Logic
-        // Wrap around if we run out of unique items in this batch
-        const targetItem = shuffledActive[normalIndex % shuffledActive.length];
-        normalIndex++;
-
-        let questionText = "";
-        let correctAnswerText = "";
-
-        if (targetItem.type === ItemType.DEFINITION) {
-          questionText = targetItem.description || "";
-          correctAnswerText = targetItem.term;
-        } else {
-          const showTermAsQuestion = Math.random() > 0.5;
-          if (showTermAsQuestion) {
-            questionText = targetItem.term;
-            correctAnswerText =
-              targetItem.meanings[
-                Math.floor(Math.random() * targetItem.meanings.length)
-              ];
-          } else {
-            questionText =
-              targetItem.meanings[
-                Math.floor(Math.random() * targetItem.meanings.length)
-              ];
-            correctAnswerText = targetItem.term;
-          }
-        }
-
-        // Generate Distractors
-        const potentialDistractors = activeItems
-          .filter((i) => i.id !== targetItem.id)
-          .map((i) => {
-            if (targetItem.type === ItemType.DEFINITION) return i.term;
-            if (
-              targetItem.type === ItemType.WORD &&
-              correctAnswerText === targetItem.term
-            ) {
-              return i.term;
-            } else {
-              return i.meanings.length > 0 ? i.meanings[0] : i.term;
-            }
-          });
-
-        const uniqueDistractors = Array.from(new Set(potentialDistractors));
-        const distractors = shuffle(uniqueDistractors).slice(0, 3);
-
-        generated.push({
-          type: QuestionType.MULTIPLE_CHOICE,
-          item: targetItem,
-          questionText,
-          correctAnswerText,
-          distractors,
-        });
       }
 
       return generated;
     },
-    [items, filter, categoryId]
+    [
+      getFilteredItems,
+      pickWeightedItem,
+      questionMode,
+      buildAlignedQuestion,
+      buildRandomizedQuestion,
+    ]
   );
 
-  // Initial Setup
   useEffect(() => {
-    // If we already have questions, don't regen
-    if (questions.length > 0) return;
-
-    // Check if we have enough data BEFORE trying to generate
-    const count = getFilteredCount();
-    if (count < 4) {
-      // If not enough data, we won't generate questions.
-      // The render logic below will switch to "Not Enough Data" view automatically
-      // because we check `getFilteredCount() < 4`
-      return;
+    if (filter === "CATEGORY" && categoryId) {
+      setCategoryMode("custom");
+      setSelectedCategories([categoryId]);
     }
-
-    const initialCount = mode === "infinite" ? 1 : 10;
-    const newQuestions = generateQuestions(initialCount);
-
-    if (newQuestions.length > 0) {
-      setQuestions(newQuestions);
-      setGameState(GameState.PLAYING);
-    }
-  }, [items, mode, generateQuestions, questions.length, filter, categoryId]);
+  }, [filter, categoryId]);
 
   // Set options for current question
   useEffect(() => {
@@ -230,29 +228,6 @@ const Exercise: React.FC = () => {
   }, [gameState]);
 
   const isNavigating = React.useRef(false); // Ref to prevent double navigation
-
-  const handleMatchingComplete = useCallback(
-    (pairs: MatchingPair[]) => {
-      // Treat the whole matching session as 1 "Correct" point for the session stats
-      // But update stats for all involved items
-
-      pairs.forEach((p) => {
-        updateStats(p.item.id, true);
-      });
-
-      setSessionStats((prev) => ({
-        correct: prev.correct + 1,
-        incorrect: prev.incorrect,
-      }));
-
-      setIsCorrect(true);
-
-      setTimeout(() => {
-        setGameState(GameState.FEEDBACK);
-      }, 50); // Very fast transition for matching mode
-    },
-    [updateStats]
-  );
 
   const handleAnswer = (answer: string) => {
     if (gameState !== GameState.PLAYING) return;
@@ -297,12 +272,14 @@ const Exercise: React.FC = () => {
 
     withSound(() => {
       if (mode === "infinite") {
-        // Generate one new question and append it
-        // Pass current length to keep "Multiple of 4" logic consistent
-        const nextQ = generateQuestions(1, questions.length)[0];
-        setQuestions((prev) => [...prev, nextQ]);
-        setCurrentIndex((prev) => prev + 1);
-        setGameState(GameState.PLAYING);
+        const nextQ = generateQuestions(1)[0];
+        if (nextQ) {
+          setQuestions((prev) => [...prev, nextQ]);
+          setCurrentIndex((prev) => prev + 1);
+          setGameState(GameState.PLAYING);
+        } else {
+          setGameState(GameState.FINISHED);
+        }
       } else {
         // Normal Mode
         if (currentIndex < questions.length - 1) {
@@ -335,52 +312,8 @@ const Exercise: React.FC = () => {
   };
 
   const getFilteredCount = useCallback(() => {
-    let activeItems = items.filter((i) => i.isActive);
-
-    if (filter === "WORD") {
-      activeItems = activeItems.filter((i) => i.type === ItemType.WORD);
-    } else if (filter === "DEFINITION") {
-      activeItems = activeItems.filter((i) => i.type === ItemType.DEFINITION);
-    } else if (filter === "CATEGORY" && categoryId) {
-      activeItems = activeItems.filter((i) => i.categoryId === categoryId);
-    }
-
-    return activeItems.length;
-  }, [items, filter, categoryId]);
-
-  if (getFilteredCount() < 4) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <div className="p-4 mb-4 border-2 rounded-full bg-amber-100 text-amber-600 border-amber-200">
-          <XCircle size={32} />
-        </div>
-        <h2 className="mb-2 text-xl font-bold text-slate-800">
-          Not Enough Data
-        </h2>
-        <p className="mb-6 font-medium text-slate-500">
-          We found <strong>{getFilteredCount()}</strong> active items for this
-          selection.
-          <br />
-          You need at least <strong>4</strong> active items to start.
-        </p>
-        <button
-          onClick={() => {
-            const btn = document.activeElement as HTMLButtonElement;
-            if (btn) {
-              btn.style.transform = "translateY(4px)";
-              btn.style.borderBottomWidth = "2px";
-            }
-            setTimeout(() => {
-              withSound(() => navigate("/"));
-            }, 150);
-          }}
-          className="px-6 py-3 font-bold text-white bg-indigo-500 border-2 border-indigo-500 border-b-[6px] border-b-indigo-700 rounded-xl transition-transform active:translate-y-1 active:border-b-2"
-        >
-          Back Home
-        </button>
-      </div>
-    );
-  }
+    return getFilteredItems().length;
+  }, [getFilteredItems]);
 
   // Finished Screen
   if (gameState === GameState.FINISHED) {
@@ -404,50 +337,50 @@ const Exercise: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50">
         <div className="w-full max-w-sm mx-auto space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center p-3 mb-3 bg-white rounded-full text-indigo-500 border-2 border-slate-100">
+          <div className="space-y-2 text-center">
+            <div className="inline-flex items-center justify-center p-3 mb-3 text-indigo-500 bg-white border-2 rounded-full border-slate-100">
               {mode === "infinite" ? (
                 <Infinity size={40} />
               ) : (
                 <CheckCircle size={40} />
               )}
             </div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">
+            <h1 className="text-2xl font-black tracking-tight text-slate-800">
               {mode === "infinite" ? "Session Paused" : "All Done!"}
             </h1>
-            <p className="text-slate-500 font-medium text-sm">
+            <p className="text-sm font-medium text-slate-500">
               {mode === "infinite"
                 ? "Great mental workout."
                 : "You've completed your set."}
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border-2 border-slate-100 space-y-5">
+          <div className="p-5 space-y-5 bg-white border-2 rounded-2xl border-slate-100">
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-emerald-50 text-center border-2 border-emerald-100">
+              <div className="p-3 text-center border-2 rounded-xl bg-emerald-50 border-emerald-100">
                 <span className="block text-2xl font-black text-emerald-500">
                   {sessionStats.correct}
                 </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600/70">
+                <span className="text-xs font-bold tracking-wider uppercase text-emerald-600/70">
                   Correct
                 </span>
               </div>
-              <div className="p-3 rounded-xl bg-rose-50 text-center border-2 border-rose-100">
+              <div className="p-3 text-center border-2 rounded-xl bg-rose-50 border-rose-100">
                 <span className="block text-2xl font-black text-rose-500">
                   {sessionStats.incorrect}
                 </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-rose-600/70">
+                <span className="text-xs font-bold tracking-wider uppercase text-rose-600/70">
                   Incorrect
                 </span>
               </div>
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex justify-between text-xs font-bold tracking-wider uppercase text-slate-400">
                 <span>Accuracy</span>
                 <span>{accuracy}%</span>
               </div>
-              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div className="w-full h-3 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full bg-indigo-500 rounded-full"
                   style={{ width: `${accuracy}%` }}
@@ -467,12 +400,213 @@ const Exercise: React.FC = () => {
     );
   }
 
-  if (gameState === GameState.PREPARING)
-    return (
-      <div className="flex items-center justify-center min-h-screen font-bold text-indigo-500">
-        Preparing...
+  const handleStart = () => {
+    const count = getFilteredCount();
+    if (count < 4) {
+      setSetupError("Minimal 4 item aktif diperlukan untuk mulai.");
+      return;
+    }
+
+    const initialCount =
+      mode === "infinite" ? 1 : settings.maxQuestionsPerSession || 10;
+    const newQuestions = generateQuestions(initialCount);
+
+    if (newQuestions.length === 0) {
+      setSetupError("Gagal membuat soal, coba ubah pilihan.");
+      return;
+    }
+
+    setQuestions(newQuestions);
+    setGameState(GameState.PLAYING);
+    setSetupError(null);
+  };
+
+  const toggleCategory = (id: string) => {
+    setSelectedCategories((prev) => {
+      if (categoryMode === "all") {
+        // Switch to custom, starting from "all categories selected" then remove clicked
+        setCategoryMode("custom");
+        return categories.filter((c) => c.id !== id).map((c) => c.id);
+      }
+      if (prev.includes(id)) return prev.filter((c) => c !== id);
+      return [...prev, id];
+    });
+  };
+
+  const startScreen = (
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-white">
+      <div className="w-full max-w-3xl p-8 space-y-6 bg-white border-2 shadow-sm border-slate-100 rounded-3xl">
+        <div className="space-y-2 text-center">
+          <p className="text-xs font-black tracking-[0.2em] text-slate-300 uppercase">
+            Exercise
+          </p>
+          <h1 className="text-3xl font-black text-slate-800">Siap berlatih?</h1>
+          <p className="font-medium text-slate-500">
+            Atur tipe soal dan pilih kategori favorit sebelum mulai kuis.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-3 text-sm font-bold border bg-slate-50 border-slate-100 rounded-2xl text-slate-500">
+          <span>Mode</span>
+          <span className="text-slate-800">
+            {mode === "infinite" ? "Infinite" : "Normal"}
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
+            Preferensi Soal
+          </p>
+          <h2 className="text-xl font-black text-slate-800">
+            Pilih cara soal ditampilkan
+          </h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <button
+            onClick={() => setQuestionMode("aligned")}
+            className={`p-4 rounded-2xl border-2 text-left transition-all ${
+              questionMode === "aligned"
+                ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle
+                size={20}
+                className={
+                  questionMode === "aligned"
+                    ? "text-indigo-600"
+                    : "text-slate-300"
+                }
+              />
+              <p className="font-black">Sesuai Data</p>
+            </div>
+            <p className="text-sm text-slate-500">
+              Soal dari term, jawaban diambil dari meaning / description sesuai
+              data asli.
+            </p>
+          </button>
+
+          <button
+            onClick={() => setQuestionMode("randomized")}
+            className={`p-4 rounded-2xl border-2 text-left transition-all ${
+              questionMode === "randomized"
+                ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <RefreshCw
+                size={20}
+                className={
+                  questionMode === "randomized"
+                    ? "text-indigo-600"
+                    : "text-slate-300"
+                }
+              />
+              <p className="font-black">Acak Total</p>
+            </div>
+            <p className="text-sm text-slate-500">
+              Soal & opsi diacak dari term, meaning, atau definition. Hanya satu
+              jawaban benar.
+            </p>
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
+            Pilih Kategori
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <label
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-bold cursor-pointer transition-all ${
+                categoryMode === "all"
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={categoryMode === "all"}
+                onChange={() => {
+                  // When turning off "All", switch to custom with NOTHING selected
+                  if (categoryMode === "all") {
+                    setCategoryMode("custom");
+                    setSelectedCategories([]);
+                  } else {
+                    setCategoryMode("all");
+                    setSelectedCategories([]);
+                  }
+                }}
+                className="accent-indigo-500"
+              />
+              <span>All</span>
+            </label>
+
+            {categories.length === 0 && (
+              <span className="text-sm text-slate-500">
+                Belum ada kategori. Semua item akan dipakai.
+              </span>
+            )}
+            {categories.map((cat) => {
+              const active =
+                categoryMode === "all" || selectedCategories.includes(cat.id);
+              return (
+                <label
+                  key={cat.id}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-bold cursor-pointer transition-all ${
+                    active
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={() => toggleCategory(cat.id)}
+                    className="accent-indigo-500"
+                  />
+                  <span>{cat.name}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="text-xs text-slate-400">
+            Pilih All untuk memakai semua kategori aktif.
+          </p>
+        </div>
+
+        {setupError && (
+          <div className="p-3 text-sm font-semibold border-2 rounded-xl border-rose-200 bg-rose-50 text-rose-700">
+            {setupError}
+          </div>
+        )}
+
+        {getFilteredCount() < 4 && (
+          <div className="p-4 text-sm font-semibold border-2 rounded-xl border-amber-200 bg-amber-50 text-amber-700">
+            Butuh minimal 4 item aktif sesuai filter & kategori untuk memulai.
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm font-bold text-slate-500">
+            Item siap dimainkan:{" "}
+            <span className="text-slate-800">{getFilteredCount()}</span>
+          </div>
+          <button
+            onClick={handleStart}
+            className="px-5 py-3 rounded-xl bg-emerald-500 text-white font-black border-2 border-emerald-500 border-b-[6px] border-b-emerald-700 transition-transform active:translate-y-1 active:border-b-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={getFilteredCount() < 4}
+          >
+            Start
+          </button>
+        </div>
       </div>
-    );
+    </div>
+  );
+
+  if (gameState === GameState.PREPARING) return startScreen;
 
   const currentQ = questions[currentIndex];
   if (!currentQ && gameState === GameState.PLAYING) {
@@ -490,120 +624,104 @@ const Exercise: React.FC = () => {
     <div className="relative flex flex-col min-h-screen overflow-hidden bg-white">
       {/* Top Bar */}
       <div className="flex items-center justify-between px-4 py-4 bg-white border-b-2 border-slate-100">
-        <button
-          onClick={handleExit}
-          className="p-2 transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl"
-        >
-          <ArrowLeft size={24} strokeWidth={2.5} />
-        </button>
+        {mode === "infinite" ? (
+          <>
+            <div className="text-sm font-bold text-slate-400">
+              #{currentIndex + 1}
+            </div>
 
-        {mode === "normal" ? (
-          <div className="flex-1 h-4 mx-4 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full transition-all duration-300 ease-out bg-indigo-500 rounded-full"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
+            <button
+              onClick={() => setGameState(GameState.FINISHED)}
+              className="px-3 py-2 text-xs font-bold text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
+            >
+              AKHIRI EXERCISE
+            </button>
+          </>
         ) : (
-          <div className="flex items-center justify-center flex-1 gap-1 text-xs font-black tracking-widest text-center uppercase text-slate-300">
-            <Infinity size={14} />
-            <span>Infinite Mode</span>
-          </div>
-        )}
+          <>
+            <button
+              onClick={handleExit}
+              className="p-2 transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl"
+            >
+              <ArrowLeft size={24} strokeWidth={2.5} />
+            </button>
 
-        <div className="w-16 text-sm font-bold text-right text-slate-400">
-          {mode === "infinite"
-            ? `#${currentIndex + 1}`
-            : `${currentIndex + 1} / ${questions.length}`}
-        </div>
+            <div className="flex-1 h-4 mx-4 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full transition-all duration-300 ease-out bg-indigo-500 rounded-full"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+
+            <div className="w-16 text-sm font-bold text-right text-slate-400">
+              {currentIndex + 1} / {questions.length}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Question Area */}
       <div className="flex flex-col items-center flex-1 w-full max-w-2xl p-6 pb-32 mx-auto">
-        {currentQ?.type === QuestionType.MATCHING && currentQ.pairs ? (
-          <MatchingQuestion
-            key={`match-${currentIndex}`}
-            pairs={currentQ.pairs}
-            onComplete={() => handleMatchingComplete(currentQ.pairs!)}
-          />
-        ) : (
-          <>
-            <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[200px] mb-8">
-              <h3 className="mb-4 text-xs font-black tracking-widest uppercase text-slate-300">
-                {currentQ?.item?.type === ItemType.WORD
-                  ? "Translate / Identify"
-                  : "Define"}
-              </h3>
+        <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[200px] mb-8">
+          <h3 className="mb-4 text-xs font-black tracking-widest uppercase text-slate-300">
+            Identify
+          </h3>
 
-              {/* Optional Image Display */}
-              {currentQ?.item?.imageUrl && (
-                <div className="mb-6">
-                  <img
-                    src={currentQ.item.imageUrl}
-                    alt="Term illustration"
-                    className="h-48 w-auto max-w-full rounded-2xl object-contain shadow-sm border-2 border-slate-100 bg-white"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                </div>
-              )}
+          {/* Optional Image Display */}
+          {currentQ?.item?.imageUrl && (
+            <div className="mb-6">
+              <img
+                src={currentQ.item.imageUrl}
+                alt="Term illustration"
+                className="object-contain w-auto h-48 max-w-full bg-white border-2 shadow-sm rounded-2xl border-slate-100"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
+          )}
 
-              <div
-                className={`leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 ${
-                  currentQ?.item?.type === ItemType.DEFINITION
-                    ? "text-lg font-bold text-left px-4"
-                    : "text-2xl md:text-3xl font-black text-center"
-                }`}
+          <div className="w-full leading-relaxed duration-300 text-slate-700 animate-in zoom-in-95 text-2xl md:text-3xl font-black text-center">
+            "{currentQ?.questionText}"
+          </div>
+        </div>
+
+        {/* Options Grid */}
+        <div className="grid w-full gap-4">
+          {shuffledOptions.map((option, idx) => {
+            // Colors based on state
+            let btnClass =
+              "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"; // Default
+            let borderClass = "border-2 border-b-4";
+
+            // Logic for feedback state
+            if (gameState === GameState.FEEDBACK) {
+              if (option === currentQ?.correctAnswerText && isCorrect) {
+                btnClass = "bg-emerald-500 border-emerald-600 text-white";
+              } else if (
+                option === selectedAnswer &&
+                option !== currentQ?.correctAnswerText
+              ) {
+                btnClass = "bg-rose-500 border-rose-600 text-white";
+              } else {
+                btnClass =
+                  "bg-slate-50 border-transparent text-slate-300 opacity-40";
+                borderClass = "border-2";
+              }
+            }
+
+            return (
+              <button
+                key={idx}
+                disabled={gameState === GameState.FEEDBACK}
+                onClick={() => handleAnswer(option)}
+                className={`w-full p-4 rounded-2xl font-bold text-lg transition-all duration-100 transform active:scale-[0.98] active:border-b-2 active:translate-y-[2px] ${borderClass} ${btnClass} flex items-center justify-start text-left group`}
               >
-                "{currentQ?.questionText}"
-              </div>
-            </div>
-
-            {/* Options Grid */}
-            <div className="grid w-full gap-4">
-              {shuffledOptions.map((option, idx) => {
-                // Colors based on state
-                let btnClass =
-                  "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"; // Default
-                let borderClass = "border-2 border-b-4";
-
-                // Logic for feedback state
-                if (gameState === GameState.FEEDBACK) {
-                  if (
-                    option === (currentQ as any).correctAnswerText &&
-                    isCorrect
-                  ) {
-                    // Correct Answer (Green) - Only show if user got it right
-                    btnClass = "bg-emerald-500 border-emerald-600 text-white";
-                  } else if (
-                    option === selectedAnswer &&
-                    option !== (currentQ as any).correctAnswerText
-                  ) {
-                    // Wrong Selection (Red)
-                    btnClass = "bg-rose-500 border-rose-600 text-white";
-                  } else {
-                    // Unselected or Hidden Correct Answer (Dimmed)
-                    btnClass =
-                      "bg-slate-50 border-transparent text-slate-300 opacity-40";
-                    borderClass = "border-2";
-                  }
-                }
-
-                return (
-                  <button
-                    key={idx}
-                    disabled={gameState === GameState.FEEDBACK}
-                    onClick={() => handleAnswer(option)}
-                    className={`w-full p-4 rounded-2xl font-bold text-lg transition-all duration-100 transform active:scale-[0.98] active:border-b-2 active:translate-y-[2px] ${borderClass} ${btnClass} flex items-center justify-between group`}
-                  >
-                    <span>{option}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
+                <span>{option}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Feedback Popup / Bottom Sheet */}
@@ -645,11 +763,11 @@ const Exercise: React.FC = () => {
 
                   {!isCorrect &&
                     currentQ?.type === QuestionType.MULTIPLE_CHOICE && (
-                      <div className="mt-3 p-3 bg-white/60 rounded-xl border border-rose-200/60 text-left animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100">
+                      <div className="p-3 mt-3 text-left duration-500 delay-100 border bg-white/60 rounded-xl border-rose-200/60 animate-in fade-in slide-in-from-bottom-2">
                         <div className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">
                           Correct Answer
                         </div>
-                        <div className="text-lg font-black text-rose-600 leading-tight">
+                        <div className="text-lg font-black leading-tight text-rose-600">
                           {currentQ.correctAnswerText}
                         </div>
                       </div>

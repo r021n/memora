@@ -4,7 +4,7 @@ import Modal from "../components/Modal";
 import CustomSelect from "../components/CustomSelect";
 import Toast from "../components/Toast";
 import LoadingOverlay from "../components/LoadingOverlay";
-import { ItemType, MemoryItem } from "../types";
+import { MemoryItem } from "../types";
 import {
   Edit2,
   Trash2,
@@ -69,18 +69,14 @@ const Manage: React.FC = () => {
 
   // -- Edit State --
   const [editTerm, setEditTerm] = useState("");
-  const [editType, setEditType] = useState<ItemType>(ItemType.WORD);
   const [editMeanings, setEditMeanings] = useState<string[]>([]);
-  const [editDescription, setEditDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState<string>("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   // -- Add State --
-  const [addMode, setAddMode] = useState<ItemType>(ItemType.WORD);
   const [addTerm, setAddTerm] = useState("");
   const [addMeanings, setAddMeanings] = useState<string[]>([""]);
-  const [addDescription, setAddDescription] = useState("");
   const [addCategoryId, setAddCategoryId] = useState<string>("");
   const [addImageUrl, setAddImageUrl] = useState("");
 
@@ -101,9 +97,8 @@ const Manage: React.FC = () => {
     const q = searchQuery.toLowerCase();
     const termMatch = item.term.toLowerCase().includes(q);
     const meaningMatch = item.meanings.some((m) => m.toLowerCase().includes(q));
-    const descMatch = item.description?.toLowerCase().includes(q);
 
-    return termMatch || meaningMatch || descMatch;
+    return termMatch || meaningMatch;
   });
 
   // Calculate Group Stats
@@ -152,7 +147,10 @@ const Manage: React.FC = () => {
         exportDate: new Date().toISOString(),
         groupName: groupName,
         categoryId: catId,
-        items: groupItems,
+        items: groupItems.map((item) => ({
+          ...item,
+          stats: { correct: 0, incorrect: 0 },
+        })),
         // If exporting All, we might want to include categories too so they can be restored?
         // Or if exporting a specific group, include that category definition?
         // For simplicity, let's include the relevant categories.
@@ -229,10 +227,8 @@ const Manage: React.FC = () => {
   const openEditModal = (item: MemoryItem) => {
     withSound(() => {
       setSelectedItem(item);
-      setEditType(item.type);
       setEditTerm(item.term);
       setEditMeanings(item.meanings.length ? [...item.meanings] : [""]);
-      setEditDescription(item.description || "");
       setEditCategoryId(item.categoryId || "");
       setEditImageUrl(item.imageUrl || "");
       setIsConfirmingDelete(false);
@@ -246,19 +242,10 @@ const Manage: React.FC = () => {
     withSound(() => {
       const updates: Partial<MemoryItem> = {
         term: editTerm,
-        type: editType,
+        meanings: editMeanings.filter((m) => m.trim() !== ""),
         categoryId: editCategoryId || undefined,
         imageUrl: editImageUrl.trim() || undefined,
       };
-
-      if (editType === ItemType.WORD) {
-        updates.meanings = editMeanings.filter((m) => m.trim() !== "");
-        // Clear description if present in DB for this item previously
-        updates.description = undefined;
-      } else {
-        updates.description = editDescription;
-        updates.meanings = [];
-      }
 
       updateItem(selectedItem.id, updates);
       setSelectedItem(null);
@@ -323,7 +310,10 @@ const Manage: React.FC = () => {
   // --- Add Functions ---
 
   const handleOpenAdd = () => {
-    withSound(() => setIsAddModalOpen(true));
+    withSound(() => {
+      setAddCategoryId(selectedCategoryId || "");
+      setIsAddModalOpen(true);
+    });
   };
 
   const handleOpenCategory = () => {
@@ -372,37 +362,21 @@ const Manage: React.FC = () => {
     if (!addTerm.trim()) return;
 
     withSound(() => {
-      if (addMode === ItemType.WORD) {
-        const filteredMeanings = addMeanings.filter((m) => m.trim() !== "");
-        if (filteredMeanings.length === 0) return;
-        addItem({
-          type: ItemType.WORD,
-          term: addTerm,
-          meanings: filteredMeanings,
-          isActive: true,
-          categoryId: addCategoryId || undefined,
-          imageUrl: addImageUrl.trim() || undefined,
-        });
-      } else {
-        if (!addDescription.trim()) return;
-        addItem({
-          type: ItemType.DEFINITION,
-          term: addTerm,
-          meanings: [],
-          description: addDescription,
-          isActive: true,
-          categoryId: addCategoryId || undefined,
-          imageUrl: addImageUrl.trim() || undefined,
-        });
-      }
+      const filteredMeanings = addMeanings.filter((m) => m.trim() !== "");
+      if (filteredMeanings.length === 0) return;
+      addItem({
+        term: addTerm,
+        meanings: filteredMeanings,
+        isActive: true,
+        categoryId: addCategoryId || undefined,
+        imageUrl: addImageUrl.trim() || undefined,
+      });
 
       // Reset Add Form
       setAddTerm("");
       setAddMeanings([""]);
-      setAddDescription("");
       setAddCategoryId("");
       setAddImageUrl("");
-      setAddMode(ItemType.WORD);
       setIsAddModalOpen(false);
     });
   };
@@ -487,17 +461,26 @@ const Manage: React.FC = () => {
                     "Group"}
               </h2>
             </div>
-            <div className="relative w-full">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-                <Search size={20} />
+            <div className="flex gap-2">
+              <div className="relative w-full">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                  <Search size={20} />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search items..."
+                  className="w-full pl-10 pr-4 py-3 font-medium bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-400 text-slate-700"
+                />
               </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search items..."
-                className="w-full pl-10 pr-4 py-3 font-medium bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-400 text-slate-700"
-              />
+              <button
+                onClick={handleOpenAdd}
+                className="flex items-center px-4 py-3 space-x-2 text-sm font-bold text-white transition-all bg-indigo-500 border-b-4 border-indigo-700 rounded-xl hover:bg-indigo-600 active:border-b-0 active:translate-y-1"
+              >
+                <Plus size={18} />
+                <span className="hidden sm:inline">Add</span>
+              </button>
             </div>
           </div>
         )}
@@ -586,16 +569,7 @@ const Manage: React.FC = () => {
                       : "border-slate-200 border-b-4 hover:border-indigo-300 hover:bg-indigo-50/30"
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <span
-                      className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
-                        item.type === ItemType.WORD
-                          ? "bg-blue-100 text-blue-600"
-                          : "bg-emerald-100 text-emerald-600"
-                      }`}
-                    >
-                      {item.type}
-                    </span>
+                  <div className="flex items-start justify-end mb-2">
                     <button
                       onClick={(e) => toggleStatus(item, e)}
                       className={`transition-colors ${
@@ -614,9 +588,7 @@ const Manage: React.FC = () => {
                     {item.term}
                   </h3>
                   <p className="text-sm text-slate-500 font-medium line-clamp-2 min-h-[2.5rem]">
-                    {item.type === ItemType.WORD
-                      ? item.meanings.join(", ")
-                      : item.description}
+                    {item.meanings.join(", ")}
                   </p>
 
                   {item.categoryId && (
@@ -682,32 +654,6 @@ const Manage: React.FC = () => {
               </button>
             </div>
 
-            {/* Type Toggle for Edit */}
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setEditType(ItemType.WORD)}
-                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
-                  editType === ItemType.WORD
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                Word
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditType(ItemType.DEFINITION)}
-                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
-                  editType === ItemType.DEFINITION
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                Definition
-              </button>
-            </div>
-
             {/* Category Select for Edit */}
             <div>
               <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
@@ -747,52 +693,39 @@ const Manage: React.FC = () => {
                 />
               </div>
 
-              {editType === ItemType.WORD ? (
-                <div>
-                  <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
-                    Meanings
-                  </label>
-                  <div className="space-y-2">
-                    {editMeanings.map((m, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <input
-                          type="text"
-                          value={m}
-                          onChange={(e) =>
-                            handleEditMeaningChange(idx, e.target.value)
-                          }
-                          className="flex-1 px-4 py-2 font-medium border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeEditMeaning(idx)}
-                          className="px-2 text-slate-300 hover:text-rose-500"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={addEditMeaning}
-                      className="mt-2 text-sm font-bold tracking-wide text-indigo-500 uppercase"
-                    >
-                      + Add meaning
-                    </button>
-                  </div>
+              <div>
+                <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
+                  Meanings
+                </label>
+                <div className="space-y-2">
+                  {editMeanings.map((m, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={m}
+                        onChange={(e) =>
+                          handleEditMeaningChange(idx, e.target.value)
+                        }
+                        className="flex-1 px-4 py-2 font-medium border-2 rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeEditMeaning(idx)}
+                        className="px-2 text-slate-300 hover:text-rose-500"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addEditMeaning}
+                    className="mt-2 text-sm font-bold tracking-wide text-indigo-500 uppercase"
+                  >
+                    + Add meaning
+                  </button>
                 </div>
-              ) : (
-                <div>
-                  <label className="block mb-1 text-xs font-bold uppercase text-slate-400">
-                    Description
-                  </label>
-                  <textarea
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    className="w-full h-24 px-4 py-3 font-medium border-2 resize-none rounded-xl border-slate-200 focus:border-indigo-400 focus:outline-none text-slate-700"
-                  />
-                </div>
-              )}
+              </div>
 
               <div className="flex gap-3 pt-4">
                 {isConfirmingDelete ? (
@@ -867,33 +800,6 @@ const Manage: React.FC = () => {
         title="Add to Library"
       >
         <form onSubmit={handleAddSubmit} className="space-y-6">
-          <div className="flex gap-2 p-1 border-2 bg-slate-100 rounded-xl border-slate-100">
-            <button
-              type="button"
-              onClick={() => withSound(() => setAddMode(ItemType.WORD), 100)}
-              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-                addMode === ItemType.WORD
-                  ? "bg-white text-indigo-500 border-b-4 border-slate-200"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              WORD
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                withSound(() => setAddMode(ItemType.DEFINITION), 100)
-              }
-              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-                addMode === ItemType.DEFINITION
-                  ? "bg-white text-indigo-500 border-b-4 border-slate-200"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              DEFINITION
-            </button>
-          </div>
-
           <div>
             <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
               Category
@@ -922,75 +828,56 @@ const Manage: React.FC = () => {
           <div className="space-y-4">
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                {addMode === ItemType.WORD
-                  ? "Keyword / Term"
-                  : "Term to Define"}
+                Keyword / Term
               </label>
               <input
                 type="text"
                 value={addTerm}
                 onChange={(e) => setAddTerm(e.target.value)}
-                placeholder={
-                  addMode === ItemType.WORD ? "e.g., Apple" : "e.g., Gravity"
-                }
+                placeholder="e.g., Apple"
                 className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                 required
               />
             </div>
 
-            {addMode === ItemType.WORD ? (
-              <div>
-                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                  Meanings
-                </label>
-                <div className="space-y-3">
-                  {addMeanings.map((meaning, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={meaning}
-                        onChange={(e) =>
-                          handleAddMeaningChange(idx, e.target.value)
-                        }
-                        placeholder="Enter meaning..."
-                        className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
-                        required={idx === 0}
-                      />
-                      {addMeanings.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeAddMeaning(idx)}
-                          className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
-                        >
-                          <X size={20} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={appendAddMeaning}
-                    className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
-                  >
-                    <Plus size={18} />
-                    <span>Add another</span>
-                  </button>
-                </div>
+            <div>
+              <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
+                Meanings
+              </label>
+              <div className="space-y-3">
+                {addMeanings.map((meaning, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={meaning}
+                      onChange={(e) =>
+                        handleAddMeaningChange(idx, e.target.value)
+                      }
+                      placeholder="Enter meaning..."
+                      className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
+                      required={idx === 0}
+                    />
+                    {addMeanings.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeAddMeaning(idx)}
+                        className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
+                      >
+                        <X size={20} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={appendAddMeaning}
+                  className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
+                >
+                  <Plus size={18} />
+                  <span>Add another</span>
+                </button>
               </div>
-            ) : (
-              <div>
-                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                  Description / Definition
-                </label>
-                <textarea
-                  value={addDescription}
-                  onChange={(e) => setAddDescription(e.target.value)}
-                  placeholder="Enter definition..."
-                  className="w-full h-32 px-4 py-3 font-medium transition-all border-2 resize-none rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
-                  required
-                />
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

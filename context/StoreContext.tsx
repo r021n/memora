@@ -5,7 +5,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { MemoryItem, AppSettings, ItemType, Category } from "../types";
+import { MemoryItem, AppSettings, Category } from "../types";
 import { generateUUID } from "../utils/uuid";
 
 interface StoreContextType {
@@ -36,7 +36,6 @@ const DEFAULT_SETTINGS: AppSettings = {
 const SEED_DATA: MemoryItem[] = [
   {
     id: "seed-1",
-    type: ItemType.WORD,
     term: "Cat",
     meanings: ["Kucing", "Hewan berkaki empat"],
     isActive: true,
@@ -45,18 +44,16 @@ const SEED_DATA: MemoryItem[] = [
   },
   {
     id: "seed-2",
-    type: ItemType.DEFINITION,
     term: "Photosynthesis",
-    description:
+    meanings: [
       "The process by which green plants use sunlight to synthesize foods.",
-    meanings: [],
+    ],
     isActive: true,
     stats: { correct: 0, incorrect: 0 },
     createdAt: Date.now(),
   },
   {
     id: "seed-3",
-    type: ItemType.WORD,
     term: "Hello",
     meanings: ["Halo", "Hai", "Sapaan"],
     isActive: true,
@@ -65,7 +62,6 @@ const SEED_DATA: MemoryItem[] = [
   },
   {
     id: "seed-4",
-    type: ItemType.WORD,
     term: "Run",
     meanings: ["Lari", "Berlari"],
     isActive: true,
@@ -74,11 +70,10 @@ const SEED_DATA: MemoryItem[] = [
   },
   {
     id: "seed-5",
-    type: ItemType.DEFINITION,
     term: "Gravity",
-    description:
+    meanings: [
       "The force that attracts a body toward the center of the earth.",
-    meanings: [],
+    ],
     isActive: true,
     stats: { correct: 0, incorrect: 0 },
     createdAt: Date.now(),
@@ -101,7 +96,25 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({
       const storedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
 
       if (storedItems) {
-        setItems(JSON.parse(storedItems));
+        let parsed: any[] = JSON.parse(storedItems);
+        // Migration logic for legacy data
+        const migrated = parsed.map((item) => {
+          const meanings = item.meanings || [];
+          if (item.description && meanings.length === 0) {
+            meanings.push(item.description);
+          }
+
+          // Clean up old fields
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { type, description, ...rest } = item;
+          return {
+            ...rest,
+            meanings,
+            term: item.term || "Unknown",
+          };
+        });
+
+        setItems(migrated);
       } else {
         setItems(SEED_DATA);
       }

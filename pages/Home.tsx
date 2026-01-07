@@ -1,68 +1,36 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Plus,
-  Play,
-  BookOpen,
-  Infinity,
-  X,
-  Layers,
-  Type,
-  FileText,
-} from "lucide-react";
+import { Plus, Play, BookOpen, Infinity, X } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Modal from "../components/Modal";
 import CustomSelect from "../components/CustomSelect";
-import { ItemType } from "../types";
+
 import { withSound } from "../utils/sound";
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
-  const [setupMode, setSetupMode] = useState<"normal" | "infinite" | null>(
-    null
-  );
   const { addItem, items, categories } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Category Selection State
-  const [selectedCategoryStart, setSelectedCategoryStart] = useState<
-    string | null
-  >(null);
-  const [isCategorySelectOpen, setIsCategorySelectOpen] = useState(false);
-
   // Form State
-  const [mode, setMode] = useState<ItemType>(ItemType.WORD);
+  // Form State
   const [term, setTerm] = useState("");
   const [meanings, setMeanings] = useState<string[]>([""]);
-  const [description, setDescription] = useState("");
   const [addCategoryId, setAddCategoryId] = useState<string>("");
 
   const categoryOptions = categories.map((c) => ({ id: c.id, label: c.name }));
 
   const activeCount = items.filter((i) => i.isActive).length;
 
-  const handlePreStart = (mode: "normal" | "infinite") => {
-    withSound(() => setSetupMode(mode));
-  };
-
-  const handleStartGame = (
-    filter: "MIX" | "WORD" | "DEFINITION" | "CATEGORY",
-    categoryId?: string
-  ) => {
-    if (setupMode) {
-      withSound(() => {
-        navigate("/exercise", {
-          state: {
-            mode: setupMode,
-            filter,
-            categoryId,
-          },
-        });
-        setSetupMode(null);
-        setIsCategorySelectOpen(false);
-        setSelectedCategoryStart(null);
+  const handlePreStart = (selectedMode: "normal" | "infinite") => {
+    withSound(() => {
+      navigate("/exercise", {
+        state: {
+          mode: selectedMode,
+          filter: "MIX",
+        },
       });
-    }
+    });
   };
 
   const handleAddClick = () => {
@@ -88,8 +56,6 @@ const Home: React.FC = () => {
   const resetForm = () => {
     setTerm("");
     setMeanings([""]);
-    setDescription("");
-    setMode(ItemType.WORD);
     setAddCategoryId("");
   };
 
@@ -100,29 +66,15 @@ const Home: React.FC = () => {
     // Direct sound play here as we are not navigating away immediately,
     // but waiting for state update is fine.
     withSound(() => {
-      if (mode === ItemType.WORD) {
-        const filteredMeanings = meanings.filter((m) => m.trim() !== "");
-        if (filteredMeanings.length === 0) return;
+      const filteredMeanings = meanings.filter((m) => m.trim() !== "");
+      if (filteredMeanings.length === 0) return;
 
-        addItem({
-          type: ItemType.WORD,
-          term: term,
-          meanings: filteredMeanings,
-          isActive: true,
-          categoryId: addCategoryId || undefined,
-        });
-      } else {
-        if (!description.trim()) return;
-
-        addItem({
-          type: ItemType.DEFINITION,
-          term: term,
-          meanings: [],
-          description: description,
-          isActive: true,
-          categoryId: addCategoryId || undefined,
-        });
-      }
+      addItem({
+        term: term,
+        meanings: filteredMeanings,
+        isActive: true,
+        categoryId: addCategoryId || undefined,
+      });
 
       resetForm();
       setIsModalOpen(false);
@@ -190,125 +142,6 @@ const Home: React.FC = () => {
         )}
       </div>
 
-      {/* Setup Practice Modal */}
-      <Modal
-        isOpen={!!setupMode && !isCategorySelectOpen}
-        onClose={() => setSetupMode(null)}
-        title="Choose Focus"
-      >
-        <div className="space-y-4">
-          <p className="mb-4 font-medium text-slate-500">
-            Select what type of cards you want to practice with.
-          </p>
-
-          <button
-            onClick={() => handleStartGame("MIX")}
-            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 border-indigo-100 bg-indigo-50 rounded-2xl hover:bg-indigo-100 hover:border-indigo-200 active:bg-indigo-200 group"
-          >
-            <div className="p-3 text-indigo-500 transition-transform bg-white shadow-sm rounded-xl group-hover:scale-110">
-              <Layers size={24} />
-            </div>
-            <div className="text-left">
-              <h3 className="font-bold text-slate-700">Mix All</h3>
-              <p className="text-xs font-medium text-slate-400">
-                Practice everything in your library
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleStartGame("WORD")}
-            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 border-blue-100 bg-blue-50 rounded-2xl hover:bg-blue-100 hover:border-blue-200 active:bg-blue-200 group"
-          >
-            <div className="p-3 text-blue-500 transition-transform bg-white shadow-sm rounded-xl group-hover:scale-110">
-              <Type size={24} />
-            </div>
-            <div className="text-left">
-              <h3 className="font-bold text-slate-700">Words Only</h3>
-              <p className="text-xs font-medium text-slate-400">
-                Translate and identify terms
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleStartGame("DEFINITION")}
-            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 bg-emerald-50 border-emerald-100 rounded-2xl hover:bg-emerald-100 hover:border-emerald-200 active:bg-emerald-200 group"
-          >
-            <div className="p-3 transition-transform bg-white shadow-sm rounded-xl text-emerald-500 group-hover:scale-110">
-              <FileText size={24} />
-            </div>
-            <div className="text-left">
-              <h3 className="font-bold text-slate-700">Definitions Only</h3>
-              <p className="text-xs font-medium text-slate-400">
-                Guess terms from descriptions
-              </p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => {
-              withSound(() => {
-                // Keep setupMode active so we know if it's normal/infinite
-                // Just open the category select, which will hide this modal via the condition above
-                setIsCategorySelectOpen(true);
-              });
-            }}
-            className="flex items-center w-full p-4 space-x-4 transition-all duration-200 border-2 bg-slate-50 border-slate-100 rounded-2xl hover:bg-slate-100 hover:border-slate-200 active:bg-slate-200 group"
-          >
-            <div className="p-3 transition-transform bg-white shadow-sm rounded-xl text-slate-500 group-hover:scale-110">
-              <Layers size={24} />
-            </div>
-            <div className="text-left">
-              <h3 className="font-bold text-slate-700">By Category</h3>
-              <p className="text-xs font-medium text-slate-400">
-                Focus on specific topics
-              </p>
-            </div>
-          </button>
-        </div>
-      </Modal>
-
-      {/* Category Selection Modal for Start Game */}
-      <Modal
-        isOpen={isCategorySelectOpen}
-        onClose={() => setIsCategorySelectOpen(false)}
-        title="Select Category"
-      >
-        <div className="space-y-4">
-          {categories.length === 0 ? (
-            <p className="text-center py-4 text-slate-500">
-              No categories found. Create one in Manage.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto pr-2">
-              {categories.map((cat) => {
-                const count = items.filter(
-                  (i) => i.categoryId === cat.id && i.isActive
-                ).length;
-                return (
-                  <button
-                    key={cat.id}
-                    disabled={count < 4}
-                    onClick={() => handleStartGame("CATEGORY", cat.id)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      count < 4
-                        ? "opacity-50 border-slate-100 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 bg-white"
-                    }`}
-                  >
-                    <div className="font-bold text-slate-700">{cat.name}</div>
-                    <div className="text-xs text-slate-400">
-                      {count} active items
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Modal>
-
       {/* Add New Item Modal */}
       <Modal
         isOpen={isModalOpen}
@@ -317,30 +150,6 @@ const Home: React.FC = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Mode Selection */}
-          <div className="flex gap-2 p-1 border-2 bg-slate-100 rounded-xl border-slate-100">
-            <button
-              type="button"
-              onClick={() => withSound(() => setMode(ItemType.WORD), 100)}
-              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-                mode === ItemType.WORD
-                  ? "bg-white text-indigo-500 border-b-4 border-slate-200"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              WORD
-            </button>
-            <button
-              type="button"
-              onClick={() => withSound(() => setMode(ItemType.DEFINITION), 100)}
-              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-                mode === ItemType.DEFINITION
-                  ? "bg-white text-indigo-500 border-b-4 border-slate-200"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              DEFINITION
-            </button>
-          </div>
 
           <div className="space-y-4">
             <div>
@@ -357,73 +166,54 @@ const Home: React.FC = () => {
 
             <div>
               <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                {mode === ItemType.WORD ? "Keyword / Term" : "Term to Define"}
+                Keyword / Term
               </label>
               <input
                 type="text"
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
-                placeholder={
-                  mode === ItemType.WORD ? "e.g., Apple" : "e.g., Gravity"
-                }
+                placeholder="e.g., Apple"
                 className="w-full px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
                 required
               />
             </div>
 
-            {mode === ItemType.WORD ? (
-              <div>
-                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                  Meanings / Translations
-                </label>
-                <div className="space-y-3">
-                  {meanings.map((meaning, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={meaning}
-                        onChange={(e) =>
-                          handleMeaningChange(idx, e.target.value)
-                        }
-                        placeholder="Enter meaning..."
-                        className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
-                        required={idx === 0}
-                      />
-                      {meanings.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMeaning(idx)}
-                          className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
-                        >
-                          <X size={20} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleAddMeaning}
-                    className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
-                  >
-                    <Plus size={18} />
-                    <span>Add another</span>
-                  </button>
-                </div>
+            <div>
+              <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
+                Meanings / Translations
+              </label>
+              <div className="space-y-3">
+                {meanings.map((meaning, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={meaning}
+                      onChange={(e) => handleMeaningChange(idx, e.target.value)}
+                      placeholder="Enter meaning..."
+                      className="flex-1 px-4 py-3 font-medium transition-all border-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
+                      required={idx === 0}
+                    />
+                    {meanings.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMeaning(idx)}
+                        className="p-3 transition-colors border-2 border-transparent text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl hover:border-rose-100"
+                      >
+                        <X size={20} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleAddMeaning}
+                  className="flex items-center py-1 space-x-1 text-sm font-bold tracking-wide text-indigo-500 uppercase hover:text-indigo-600"
+                >
+                  <Plus size={18} />
+                  <span>Add another</span>
+                </button>
               </div>
-            ) : (
-              <div>
-                <label className="block mb-2 text-xs font-bold uppercase text-slate-400">
-                  Description / Definition
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g., The force that attracts a body toward the center of the earth."
-                  className="w-full h-32 px-4 py-3 font-medium transition-all border-2 resize-none rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:outline-none text-slate-700"
-                  required
-                />
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
