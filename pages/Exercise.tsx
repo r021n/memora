@@ -64,74 +64,6 @@ const Exercise: React.FC = () => {
 
   // Smoothed accuracy to avoid extreme weighting when attempts are low.
   // Laplace smoothing: unseen items start at 0.5.
-  const getSmoothedAccuracy = useCallback((item: MemoryItem) => {
-    const correct = item.stats.correct;
-    const incorrect = item.stats.incorrect;
-    const total = correct + incorrect;
-    return (correct + 1) / (total + 2);
-  }, []);
-
-  const getAverageAccuracy = useCallback(
-    (pool: MemoryItem[]) => {
-      if (pool.length === 0) return 0.5;
-      const sum = pool.reduce(
-        (acc, item) => acc + getSmoothedAccuracy(item),
-        0
-      );
-      return sum / pool.length;
-    },
-    [getSmoothedAccuracy]
-  );
-
-  // Weighting rule:
-  // - Items below average get higher weight (prioritized)
-  // - Items at/above average share baseline weight (still random)
-  const getBelowAverageWeight = useCallback(
-    (item: MemoryItem, avgAccuracy: number) => {
-      const acc = getSmoothedAccuracy(item);
-      const below = Math.max(0, avgAccuracy - acc);
-      // Tunable: higher multiplier = more aggressive prioritization.
-      const weight = 1 + below * 6;
-      return Math.max(0.05, weight);
-    },
-    [getSmoothedAccuracy]
-  );
-
-  // Weighted permutation without replacement (Efraimidis–Spirakis).
-  // Produces a random order where higher-weight items tend to appear earlier.
-  const weightedPermutation = useCallback(
-    <T,>(pool: T[], weightFn: (item: T) => number): T[] => {
-      return pool
-        .map((item) => {
-          const w = Math.max(0.0001, weightFn(item));
-          const u = Math.random();
-          const key = -Math.log(u) / w;
-          return { item, key };
-        })
-        .sort((a, b) => a.key - b.key)
-        .map((x) => x.item);
-    },
-    []
-  );
-
-  const pickWeighted = useCallback(
-    <T,>(pool: T[], weightFn: (item: T) => number): T | null => {
-      if (pool.length === 0) return null;
-      const weights = pool.map((x) => Math.max(0, weightFn(x)));
-      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-      if (totalWeight <= 0)
-        return pool[Math.floor(Math.random() * pool.length)];
-
-      const r = Math.random() * totalWeight;
-      let cumulative = 0;
-      for (let i = 0; i < pool.length; i++) {
-        cumulative += weights[i];
-        if (r <= cumulative) return pool[i];
-      }
-      return pool[pool.length - 1];
-    },
-    []
-  );
 
   const getFilteredItems = useCallback(() => {
     let activeItems = items.filter((i) => i.isActive);
@@ -287,22 +219,90 @@ const Exercise: React.FC = () => {
         questionMode === "pairToKey"
           ? getEligibleItemsForPairToKey()
           : getFilteredItems();
+
       if (pool.length < 4) return [];
 
-      const avgAccuracy = getAverageAccuracy(pool);
-      const weightFn = (item: MemoryItem) =>
-        getBelowAverageWeight(item, avgAccuracy);
-
       const generated: QuestionData[] = [];
+      const targetItems: MemoryItem[] = [];
 
-      // Prefer a more even spread in normal mode by using weighted permutations
-      // (no immediate repeats until pool is cycled).
-      const rounds = Math.max(1, Math.ceil(count / pool.length) + 1);
-      const targetStream: MemoryItem[] = [];
-      for (let r = 0; r < rounds; r++) {
-        targetStream.push(...weightedPermutation(pool, weightFn));
+      // Calculate stats metadata for sorting
+      // We use (correct + 1) / (attempts + 2) for Laplace smoothing in accuracy
+      // logic to handle low data cases gracefully.
+      const candidates = pool.map((item) => ({
+        item,
+        accuracy:
+          (item.stats.correct + 1) /
+          (item.stats.correct + item.stats.incorrect + 2),
+        totalAttempts: item.stats.correct + item.stats.incorrect,
+      }));
+
+      // --- STRATEGY: SPLIT FOCUS (40% Remedial / 60% Least Played) ---
+
+      if (mode === "infinite" && count === 1) {
+        // INFINITE MODE: Probabilistic Split
+        // 40% Chance -> Remedial (Worst Accuracy)
+        // 60% Chance -> Least Played (Fewest Attempts)
+        const isRemedial = Math.random() < 0.4;
+
+        // Filter out recent items to prevent immediate repetition
+        const recent = new Set(recentTargetIds.current);
+        let validCandidates = candidates.filter((c) => !recent.has(c.item.id));
+        if (validCandidates.length === 0) validCandidates = [...candidates];
+
+        if (isRemedial) {
+          // Remedial: Sort by Accuracy ASC
+          validCandidates.sort((a, b) => {
+            if (Math.abs(a.accuracy - b.accuracy) > 0.001) {
+              return a.accuracy - b.accuracy;
+            }
+            return Math.random() - 0.5;
+          });
+        } else {
+          // Least Played: Sort by Attempts ASC
+          validCandidates.sort((a, b) => {
+            if (a.totalAttempts !== b.totalAttempts) {
+              return a.totalAttempts - b.totalAttempts;
+            }
+            return Math.random() - 0.5;
+          });
+        }
+
+        // Pick top candidate with slight fuzziness (top 3)
+        const window = Math.min(3, validCandidates.length);
+        const picked = validCandidates[Math.floor(Math.random() * window)];
+        targetItems.push(picked.item);
+      } else {
+        // NORMAL MODE: Fixed Quota Split
+        // Quota: 40% Remedial, 60% Fresh/Least Played
+        const remedialCount = Math.round(count * 0.4);
+        const freshCount = count - remedialCount;
+
+        // We work with a copy of candidates
+        let available = [...candidates];
+
+        // 1. Remedial Batch (Accuracy ASC)
+        available.sort(
+          (a, b) => a.accuracy - b.accuracy || Math.random() - 0.5
+        );
+        const pickedRemedial = available.slice(0, remedialCount);
+        targetItems.push(...pickedRemedial.map((c) => c.item));
+
+        // Remove picked from available
+        const pickedIds = new Set(pickedRemedial.map((c) => c.item.id));
+        available = available.filter((c) => !pickedIds.has(c.item.id));
+
+        // 2. Least Played Batch (Attempts ASC)
+        available.sort(
+          (a, b) => a.totalAttempts - b.totalAttempts || Math.random() - 0.5
+        );
+        const pickedFresh = available.slice(0, freshCount);
+        targetItems.push(...pickedFresh.map((c) => c.item));
       }
 
+      // Shuffle Targets to mix them up
+      const shuffledTargets = shuffle(targetItems);
+
+      // Builder Logic
       const buildFromTarget = (targetItem: MemoryItem): QuestionData | null => {
         if (questionMode === "aligned") {
           return buildAlignedQuestion(targetItem, pool);
@@ -313,14 +313,7 @@ const Exercise: React.FC = () => {
         return buildPairToKeyQuestion(targetItem, pool);
       };
 
-      const getCandidatesForTarget = () => {
-        if (mode !== "infinite") return pool;
-        const excluded = new Set(recentTargetIds.current);
-        const candidates = pool.filter((i) => !excluded.has(i.id));
-        return candidates.length > 0 ? candidates : pool;
-      };
-
-      for (const targetItem of targetStream) {
+      for (const targetItem of shuffledTargets) {
         if (generated.length >= count) break;
         const q = buildFromTarget(targetItem);
         if (q) {
@@ -329,20 +322,19 @@ const Exercise: React.FC = () => {
         }
       }
 
-      // Fallback: if some targets cannot build questions (e.g., not enough distractors),
-      // keep trying weighted picks until filled (bounded attempts).
-      const maxAttempts = Math.max(20, count * 8);
+      // Fallback Fill (if needed)
       let attempts = 0;
-      while (generated.length < count && attempts < maxAttempts) {
+      while (generated.length < count && attempts < 50) {
         attempts++;
-        const candidates = getCandidatesForTarget();
-        const picked = pickWeighted(candidates, weightFn);
-        if (!picked) break;
-        const q = buildFromTarget(picked);
-        if (q) {
-          generated.push(q);
-          if (q.item?.id) pushRecentTarget(q.item.id, pool.length);
-        }
+        const currentIds = new Set(generated.map((g) => g.item?.id));
+        const leftovers = pool.filter((i) => !currentIds.has(i.id));
+        const source = leftovers.length > 0 ? leftovers : pool;
+
+        if (source.length === 0) break;
+
+        const randomItem = source[Math.floor(Math.random() * source.length)];
+        const q = buildFromTarget(randomItem);
+        if (q) generated.push(q);
       }
 
       return generated;
@@ -350,16 +342,13 @@ const Exercise: React.FC = () => {
     [
       getFilteredItems,
       getEligibleItemsForPairToKey,
-      getAverageAccuracy,
-      getBelowAverageWeight,
-      weightedPermutation,
-      pickWeighted,
-      pushRecentTarget,
       questionMode,
+      mode,
+      shuffle,
       buildAlignedQuestion,
       buildRandomizedQuestion,
       buildPairToKeyQuestion,
-      mode,
+      pushRecentTarget,
     ]
   );
 
